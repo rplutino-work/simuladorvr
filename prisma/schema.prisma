@@ -1,0 +1,124 @@
+// Simulador VR - Racing Simulator Booking System
+// Database: PostgreSQL (Neon compatible)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User - Authentication & RBAC
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      UserRole @default(OPERATOR)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BusinessSettings - Singleton config (one row)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BusinessSettings {
+  id                    String   @id @default(cuid())
+  openHour              Int      // e.g. 10
+  closeHour             Int      // e.g. 20
+  slotInterval          Int      // minutes, e.g. 15
+  allowCancel           Boolean  @default(true)
+  allowReschedule       Boolean  @default(true)
+  cancelLimitHours      Int      // min hours before start to allow cancel
+  negativeMarginMinutes Int      // buffer before/after slots
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Puesto - Simulator station
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Puesto {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  // Pricing (stored in cents for precision)
+  price30   Int      @default(0)
+  price60   Int      @default(0)
+  price120  Int      @default(0)
+
+  bookings  Booking[]
+
+  @@index([active])
+  @@index([name])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Booking - Reservation entity
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Booking {
+  id         String         @id @default(cuid())
+  puestoId   String
+  duration   Int            // 30, 60, 120 minutes
+  price      Int            // Amount in cents
+  status     BookingStatus  @default(PENDING)
+  code       String?        @unique // 6-digit alphanumeric, generated on payment
+  startTime  DateTime?
+  endTime    DateTime?
+  paymentId  String?        // MercadoPago payment ID
+  customerEmail String?    // For sending confirmation email
+  createdAt  DateTime       @default(now())
+
+  puesto     Puesto         @relation(fields: [puestoId], references: [id], onDelete: Restrict)
+  payment    Payment?
+
+  @@index([puestoId])
+  @@index([status])
+  @@index([code])
+  @@index([createdAt])
+  @@index([startTime])
+  @@index([puestoId, startTime])
+}
+
+enum BookingStatus {
+  PENDING
+  PAID
+  ACTIVE
+  FINISHED
+  EXPIRED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payment - MercadoPago transaction record
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Payment {
+  id          String   @id @default(cuid())
+  bookingId   String   @unique
+  mpPaymentId String  // MercadoPago external reference
+  amount      Int      // Amount in cents
+  status      String   // approved, pending, rejected
+  createdAt   DateTime @default(now())
+
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([mpPaymentId])
+  @@index([status])
+}
