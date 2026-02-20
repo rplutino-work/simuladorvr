@@ -55,3 +55,6 @@ next-env.d.ts
 !.vscode/launch.json
 Thumbs.db
 *.log
+
+# ayuda local (clave SSH para copiar a GitHub)
+GITHUB_SSH_KEY.txt
