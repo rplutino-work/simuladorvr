@@ -31,13 +31,15 @@ export async function getBusinessSettings() {
 }
 
 /**
- * Generate time slots for a day between openHour and closeHour
+ * Generate time slots for a day between openHour and closeHour.
+ * Pass `minTime` to exclude slots that start before that moment (e.g. filter past slots for today).
  */
 export function generateSlotsForDay(
   date: Date,
   openHour: number,
   closeHour: number,
-  slotIntervalMinutes: number
+  slotIntervalMinutes: number,
+  minTime?: Date
 ): Date[] {
   const slots: Date[] = [];
   const start = new Date(date);
@@ -47,7 +49,10 @@ export function generateSlotsForDay(
 
   const current = new Date(start);
   while (current < end) {
-    slots.push(new Date(current));
+    // Skip slots that have already started (with a 1-minute tolerance)
+    if (!minTime || current.getTime() >= minTime.getTime() - 60_000) {
+      slots.push(new Date(current));
+    }
     current.setMinutes(current.getMinutes() + slotIntervalMinutes);
   }
   return slots;
@@ -67,11 +72,13 @@ function overlaps(
 }
 
 /**
- * Get availability for a puesto on a given date
+ * Get availability for a puesto on a given date.
+ * When minTime is provided, slots before that time are returned as unavailable.
  */
 export async function getAvailability(
   dateStr: string,
-  puestoId: string
+  puestoId: string,
+  minTime?: Date
 ): Promise<SlotInfo[]> {
   const settings = await getBusinessSettings();
   const date = new Date(dateStr);
@@ -81,7 +88,8 @@ export async function getAvailability(
     date,
     settings.openHour,
     settings.closeHour,
-    settings.slotInterval
+    settings.slotInterval,
+    minTime
   );
 
   const dayEnd = new Date(date);
@@ -150,7 +158,8 @@ export async function isSlotAvailable(
 export type DayAvailabilityPuesto = { id: string; name: string; slots: SlotInfo[] };
 
 /**
- * Get availability for all active puestos on a date (for day grid)
+ * Get availability for all active puestos on a date (for day grid).
+ * Automatically filters out past slots when dateStr is today.
  */
 export async function getAvailabilityForDay(
   dateStr: string
@@ -158,11 +167,19 @@ export async function getAvailabilityForDay(
   const settings = await getBusinessSettings();
   const date = new Date(dateStr);
   date.setHours(0, 0, 0, 0);
+
+  // Determine if the requested date is today — if so, filter past slots
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isToday = date.getTime() === today.getTime();
+  const minTime = isToday ? new Date() : undefined;
+
   const slots = generateSlotsForDay(
     date,
     settings.openHour,
     settings.closeHour,
-    settings.slotInterval
+    settings.slotInterval,
+    minTime
   );
   const puestos = await prisma.puesto.findMany({
     where: { active: true },
@@ -172,7 +189,7 @@ export async function getAvailabilityForDay(
     puestos.map(async (p) => ({
       id: p.id,
       name: p.name,
-      slots: await getAvailability(dateStr, p.id),
+      slots: await getAvailability(dateStr, p.id, minTime),
     }))
   );
   return { slots, puestos: puestosWithSlots };
