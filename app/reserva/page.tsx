@@ -58,7 +58,7 @@ const HOW_STEPS = [
     n: "05",
     icon: "📱",
     title: "INGRESÁ EL CÓDIGO EN LA TABLET",
-    desc: "Cada simulador tiene una tablet. Tocá "Iniciar sesión", ingresá tu código de 6 caracteres y la pantalla se activa automáticamente.",
+    desc: "Cada simulador tiene una tablet. Tocá 'Iniciar sesión', ingresá tu código de 6 caracteres y la pantalla se activa automáticamente.",
   },
   {
     n: "06",
