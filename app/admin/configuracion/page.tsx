@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { Send, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,13 +23,34 @@ type Settings = {
   allowReschedule: boolean;
   cancelLimitHours: number;
   negativeMarginMinutes: number;
+  emailEnabled: boolean;
+  emailFrom: string | null;
+};
+
+type ScheduleForm = {
+  openHour: number;
+  closeHour: number;
+  slotInterval: number;
+  allowCancel: boolean;
+  allowReschedule: boolean;
+  cancelLimitHours: number;
+  negativeMarginMinutes: number;
+};
+
+type EmailForm = {
+  emailEnabled: boolean;
+  emailFrom: string;
 };
 
 export default function ConfiguracionPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [scheduleOk, setScheduleOk] = useState(false);
+  const [emailOk, setEmailOk] = useState(false);
+
+  const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     openHour: 10,
     closeHour: 20,
     slotInterval: 15,
@@ -38,13 +60,26 @@ export default function ConfiguracionPage() {
     negativeMarginMinutes: 0,
   });
 
+  const [emailForm, setEmailForm] = useState<EmailForm>({
+    emailEnabled: true,
+    emailFrom: "",
+  });
+
+  // Test email
+  const [testEmailAddr, setTestEmailAddr] = useState("");
+  const [testEmailLoading, setTestEmailLoading] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);
         setSettings(data);
-        setForm({
+        setScheduleForm({
           openHour: data.openHour,
           closeHour: data.closeHour,
           slotInterval: data.slotInterval,
@@ -53,27 +88,82 @@ export default function ConfiguracionPage() {
           cancelLimitHours: data.cancelLimitHours,
           negativeMarginMinutes: data.negativeMarginMinutes,
         });
+        setEmailForm({
+          emailEnabled: data.emailEnabled ?? true,
+          emailFrom: data.emailFrom ?? "",
+        });
       })
       .catch(() => setSettings(null))
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSaveSchedule(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    setSavingSchedule(true);
+    setScheduleOk(false);
     try {
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(scheduleForm),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error");
-      setSettings(data);
+      setSettings((prev) => ({ ...(prev as Settings), ...data }));
+      setScheduleOk(true);
+      setTimeout(() => setScheduleOk(false), 3000);
     } catch (err) {
       console.error(err);
     } finally {
-      setSaving(false);
+      setSavingSchedule(false);
+    }
+  }
+
+  async function handleSaveEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEmail(true);
+    setEmailOk(false);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emailEnabled: emailForm.emailEnabled,
+          emailFrom: emailForm.emailFrom.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error");
+      setSettings((prev) => ({ ...(prev as Settings), ...data }));
+      setEmailOk(true);
+      setTimeout(() => setEmailOk(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
+  async function handleTestEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setTestEmailLoading(true);
+    setTestEmailResult(null);
+    try {
+      const res = await fetch("/api/admin/email-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: testEmailAddr }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error");
+      setTestEmailResult({ ok: true, message: data.message ?? "Email enviado" });
+    } catch (err) {
+      setTestEmailResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Error desconocido",
+      });
+    } finally {
+      setTestEmailLoading(false);
     }
   }
 
@@ -88,27 +178,23 @@ export default function ConfiguracionPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">
-          Configuración del negocio
-        </h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Configuración</h1>
         <p className="mt-1 text-slate-600">
-          Horarios, intervalos y reglas de cancelación
+          Horarios, reglas de cancelación y emails transaccionales
         </p>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
+      {/* ── Schedule settings ─────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card>
           <CardHeader>
-            <CardTitle>Horario y slots</CardTitle>
+            <CardTitle>Horario y turnos</CardTitle>
             <CardDescription>
-              Define el rango horario y el intervalo de los turnos
+              Define el rango horario y el intervalo entre slots
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSaveSchedule} className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="openHour">Hora de apertura</Label>
@@ -117,9 +203,12 @@ export default function ConfiguracionPage() {
                     type="number"
                     min={0}
                     max={23}
-                    value={form.openHour}
+                    value={scheduleForm.openHour}
                     onChange={(e) =>
-                      setForm({ ...form, openHour: parseInt(e.target.value, 10) || 0 })
+                      setScheduleForm({
+                        ...scheduleForm,
+                        openHour: parseInt(e.target.value, 10) || 0,
+                      })
                     }
                   />
                 </div>
@@ -130,9 +219,12 @@ export default function ConfiguracionPage() {
                     type="number"
                     min={0}
                     max={24}
-                    value={form.closeHour}
+                    value={scheduleForm.closeHour}
                     onChange={(e) =>
-                      setForm({ ...form, closeHour: parseInt(e.target.value, 10) || 0 })
+                      setScheduleForm({
+                        ...scheduleForm,
+                        closeHour: parseInt(e.target.value, 10) || 0,
+                      })
                     }
                   />
                 </div>
@@ -143,9 +235,12 @@ export default function ConfiguracionPage() {
                     type="number"
                     min={5}
                     max={60}
-                    value={form.slotInterval}
+                    value={scheduleForm.slotInterval}
                     onChange={(e) =>
-                      setForm({ ...form, slotInterval: parseInt(e.target.value, 10) || 15 })
+                      setScheduleForm({
+                        ...scheduleForm,
+                        slotInterval: parseInt(e.target.value, 10) || 15,
+                      })
                     }
                   />
                 </div>
@@ -159,24 +254,30 @@ export default function ConfiguracionPage() {
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={form.allowCancel}
+                      checked={scheduleForm.allowCancel}
                       onChange={(e) =>
-                        setForm({ ...form, allowCancel: e.target.checked })
+                        setScheduleForm({
+                          ...scheduleForm,
+                          allowCancel: e.target.checked,
+                        })
                       }
                       className="h-4 w-4 rounded border-slate-300"
                     />
-                    <span className="text-sm">Permitir cancelación</span>
+                    <span className="text-sm">Permitir cancelación por el cliente</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={form.allowReschedule}
+                      checked={scheduleForm.allowReschedule}
                       onChange={(e) =>
-                        setForm({ ...form, allowReschedule: e.target.checked })
+                        setScheduleForm({
+                          ...scheduleForm,
+                          allowReschedule: e.target.checked,
+                        })
                       }
                       className="h-4 w-4 rounded border-slate-300"
                     />
-                    <span className="text-sm">Permitir reprogramación</span>
+                    <span className="text-sm">Permitir reprogramación por el cliente</span>
                   </label>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -188,10 +289,10 @@ export default function ConfiguracionPage() {
                       id="cancelLimitHours"
                       type="number"
                       min={0}
-                      value={form.cancelLimitHours}
+                      value={scheduleForm.cancelLimitHours}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
+                        setScheduleForm({
+                          ...scheduleForm,
                           cancelLimitHours: parseInt(e.target.value, 10) || 0,
                         })
                       }
@@ -205,10 +306,10 @@ export default function ConfiguracionPage() {
                       id="negativeMarginMinutes"
                       type="number"
                       min={0}
-                      value={form.negativeMarginMinutes}
+                      value={scheduleForm.negativeMarginMinutes}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
+                        setScheduleForm({
+                          ...scheduleForm,
                           negativeMarginMinutes: parseInt(e.target.value, 10) || 0,
                         })
                       }
@@ -217,10 +318,153 @@ export default function ConfiguracionPage() {
                 </div>
               </div>
 
-              <Button type="submit" disabled={saving}>
-                {saving ? "Guardando..." : "Guardar cambios"}
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={savingSchedule}>
+                  {savingSchedule ? "Guardando..." : "Guardar horarios"}
+                </Button>
+                {scheduleOk && (
+                  <motion.span
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-1.5 text-sm text-green-600"
+                  >
+                    <CheckCircle className="h-4 w-4" /> Guardado
+                  </motion.span>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* ── Email settings ────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuración de emails</CardTitle>
+            <CardDescription>
+              Activá o desactivá el envío de confirmaciones. El remitente puede
+              sobreescribir la variable <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">EMAIL_FROM</code> del servidor.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveEmail} className="space-y-6">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEmailForm({
+                      ...emailForm,
+                      emailEnabled: !emailForm.emailEnabled,
+                    })
+                  }
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 ${
+                    emailForm.emailEnabled ? "bg-slate-900" : "bg-slate-200"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                      emailForm.emailEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span className="text-sm font-medium text-slate-700">
+                  {emailForm.emailEnabled
+                    ? "Envío de emails activado"
+                    : "Envío de emails desactivado"}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="emailFrom">
+                  Remitente (From)
+                  <span className="ml-1.5 text-xs text-slate-400">— dejar vacío para usar el del servidor</span>
+                </Label>
+                <Input
+                  id="emailFrom"
+                  type="text"
+                  placeholder="Simulador VR <noreply@tudominio.com>"
+                  value={emailForm.emailFrom}
+                  onChange={(e) =>
+                    setEmailForm({ ...emailForm, emailFrom: e.target.value })
+                  }
+                />
+                <p className="text-xs text-slate-400">
+                  Formato: <code>Nombre &lt;email@dominio.com&gt;</code> · Requiere dominio verificado en Resend
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={savingEmail}>
+                  {savingEmail ? "Guardando..." : "Guardar configuración email"}
+                </Button>
+                {emailOk && (
+                  <motion.span
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center gap-1.5 text-sm text-green-600"
+                  >
+                    <CheckCircle className="h-4 w-4" /> Guardado
+                  </motion.span>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* ── Test email ────────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Enviar email de prueba</CardTitle>
+            <CardDescription>
+              Verifica que la clave de Resend y el remitente estén correctamente
+              configurados
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleTestEmail} className="flex flex-col gap-4 sm:flex-row">
+              <Input
+                type="email"
+                placeholder="tu@email.com"
+                value={testEmailAddr}
+                onChange={(e) => setTestEmailAddr(e.target.value)}
+                required
+                className="flex-1"
+              />
+              <Button type="submit" disabled={testEmailLoading} variant="outline">
+                <Send className="mr-2 h-4 w-4" />
+                {testEmailLoading ? "Enviando..." : "Enviar prueba"}
               </Button>
             </form>
+            {testEmailResult && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mt-3 flex items-center gap-2 rounded-xl p-3 text-sm ${
+                  testEmailResult.ok
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {testEmailResult.ok ? (
+                  <CheckCircle className="h-4 w-4 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                )}
+                {testEmailResult.message}
+              </motion.div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

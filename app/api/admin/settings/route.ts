@@ -12,6 +12,8 @@ const updateSettingsSchema = z.object({
   allowReschedule: z.boolean().optional(),
   cancelLimitHours: z.number().int().min(0).optional(),
   negativeMarginMinutes: z.number().int().min(0).optional(),
+  emailEnabled: z.boolean().optional(),
+  emailFrom: z.string().max(200).nullable().optional(),
 });
 
 /**
@@ -53,6 +55,7 @@ export async function PATCH(req: NextRequest) {
         allowReschedule: true,
         cancelLimitHours: 24,
         negativeMarginMinutes: 0,
+        emailEnabled: true,
       },
     });
   }

@@ -127,10 +127,12 @@ function ReservaContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear reserva");
-      const initPoint =
-        process.env.NODE_ENV === "production"
-          ? data.initPoint
-          : data.sandboxInitPoint ?? data.initPoint;
+      // Use sandboxInitPoint only when NEXT_PUBLIC_MERCADOPAGO_SANDBOX=true is set.
+      // With production credentials (APP_USR-) always use initPoint.
+      const isSandbox = process.env.NEXT_PUBLIC_MERCADOPAGO_SANDBOX === "true";
+      const initPoint = isSandbox
+        ? (data.sandboxInitPoint ?? data.initPoint)
+        : data.initPoint;
       if (initPoint) window.location.href = initPoint;
       else router.push(`/reserva/confirmacion?bookingId=${data.bookingId}`);
     } catch (e) {

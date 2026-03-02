@@ -83,14 +83,28 @@ export async function POST(req: NextRequest) {
       });
     });
 
+    // Check emailEnabled setting
+    const bizSettings = await prisma.businessSettings.findFirst();
+    const emailEnabled = bizSettings?.emailEnabled !== false;
+
     // Send confirmation email
     const email = booking.customerEmail ?? process.env.EMAIL_FALLBACK;
-    if (email) {
-      const startTime = new Date().toLocaleString("es-AR", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
-      await sendBookingConfirmationEmail(email, code, booking.duration, startTime);
+    if (emailEnabled && email) {
+      const startTime = booking.startTime
+        ? booking.startTime.toLocaleString("es-AR", {
+            dateStyle: "long",
+            timeStyle: "short",
+            timeZone: "America/Argentina/Buenos_Aires",
+          })
+        : "A confirmar";
+      await sendBookingConfirmationEmail(
+        email,
+        code,
+        booking.duration,
+        startTime,
+        booking.puesto.name,
+        bizSettings?.emailFrom
+      );
     }
 
     return NextResponse.json({ ok: true });

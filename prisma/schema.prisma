@@ -43,6 +43,9 @@ model BusinessSettings {
   allowReschedule       Boolean  @default(true)
   cancelLimitHours      Int      // min hours before start to allow cancel
   negativeMarginMinutes Int      // buffer before/after slots
+  // Email settings
+  emailEnabled          Boolean  @default(true)
+  emailFrom             String?  // overrides EMAIL_FROM env var when set
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -81,9 +84,11 @@ model Booking {
   code       String?        @unique // 6-digit alphanumeric, generated on payment
   startTime  DateTime?
   endTime    DateTime?
-  paymentId  String?        // MercadoPago payment ID
-  customerEmail String?    // For sending confirmation email
-  createdAt  DateTime       @default(now())
+  paymentId     String?        // MercadoPago payment ID
+  customerEmail String?        // For sending confirmation email
+  customerName  String?        // Optional: walk-in customer name
+  notes         String?        // Admin internal notes
+  createdAt     DateTime       @default(now())
 
   puesto     Puesto         @relation(fields: [puestoId], references: [id], onDelete: Restrict)
   payment    Payment?

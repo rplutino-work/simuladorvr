@@ -81,6 +81,10 @@ export async function POST(req: NextRequest) {
       process.env.NEXTAUTH_URL ??
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
+    // notification_url is required for the webhook to fire on payment approval.
+    // Must be a publicly accessible URL — won't work on localhost without a tunnel.
+    const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
+
     const preferenceResult = await preference.create({
       body: {
         items: [
@@ -93,6 +97,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         external_reference: booking.id,
+        notification_url: notificationUrl,
         back_urls: {
           success: `${baseUrl}/reserva/confirmacion?bookingId=${booking.id}`,
           failure: `${baseUrl}/reserva?error=payment_failed`,
