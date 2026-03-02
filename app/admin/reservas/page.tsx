@@ -1,4 +1,5 @@
 "use client";
+// v2 — walk-in, confirm payment, session flow
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
