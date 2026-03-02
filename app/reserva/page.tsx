@@ -3,18 +3,11 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Car } from "lucide-react";
+import { Car, Calendar, Clock, ChevronLeft, AlertCircle, CheckCircle } from "lucide-react";
 
 type Puesto = {
   id: string;
@@ -33,13 +26,30 @@ type DayAvailability = {
 
 const DURATIONS = [30, 60, 120] as const;
 
-function formatSlotTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function fmt(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+// ── Step indicator ─────────────────────────────────────────────────────────
+function StepDot({ n, active, done }: { n: number; active: boolean; done: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div
+        className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+          done
+            ? "bg-slate-900 text-white"
+            : active
+            ? "bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-2"
+            : "bg-slate-200 text-slate-500"
+        }`}
+      >
+        {done ? <CheckCircle className="h-3.5 w-3.5" /> : n}
+      </div>
+    </div>
+  );
+}
+
+// ── Main content ───────────────────────────────────────────────────────────
 function ReservaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,68 +58,69 @@ function ReservaContent() {
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [date, setDate] = useState<string>(() => {
     const d = new Date();
-    d.setDate(d.getDate() + (d.getHours() >= 20 ? 1 : 0));
+    if (d.getHours() >= 20) d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
-  const [dayData, setDayData] = useState<DayAvailability | null>(null);
+  const [dayData, setDayData]     = useState<DayAvailability | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [selectedPuestoId, setSelectedPuestoId] = useState<string | null>(null);
+
+  const [selectedPuestoId, setSelectedPuestoId]   = useState<string | null>(null);
   const [selectedStartTime, setSelectedStartTime] = useState<string | null>(null);
+  const [activeMobilePuestoId, setActiveMobilePuestoId] = useState<string | null>(null);
+
   const [duration, setDuration] = useState<number>(60);
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(
-    errorParam === "payment_failed" ? "El pago no pudo completarse" : null
+  const [email, setEmail]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(
+    errorParam === "payment_failed" ? "El pago no pudo completarse. Intentalo de nuevo." : null
   );
 
+  // ── Fetch puestos (for pricing)
   useEffect(() => {
-    fetch("/api/puestos")
-      .then((r) => r.json())
-      .then(setPuestos)
-      .catch(() => {});
+    fetch("/api/puestos").then((r) => r.json()).then(setPuestos).catch(() => {});
   }, []);
 
+  // ── Fetch availability
   useEffect(() => {
     if (!date) return;
     setLoadingSlots(true);
     setSelectedPuestoId(null);
     setSelectedStartTime(null);
+    setActiveMobilePuestoId(null);
     fetch(`/api/availability?date=${date}`)
       .then((r) => r.json())
       .then((data) => {
-        setDayData({
-          slots: data.slots ?? [],
-          puestos: data.puestos ?? [],
-        });
+        setDayData({ slots: data.slots ?? [], puestos: data.puestos ?? [] });
         if (data.error) setError(data.error);
         else setError(null);
+        if ((data.puestos ?? []).length > 0) {
+          setActiveMobilePuestoId(data.puestos[0].id);
+        }
       })
       .catch(() => {
         setDayData({ slots: [], puestos: [] });
-        setError("Error al cargar horarios. Revisá que la base tenga Configuración y Puestos.");
+        setError("Error al cargar horarios.");
       })
       .finally(() => setLoadingSlots(false));
   }, [date]);
 
   const selectedPuesto = puestos.find((p) => p.id === selectedPuestoId);
-  const priceKey =
-    duration === 30 ? "price30" : duration === 60 ? "price60" : "price120";
-  const price = selectedPuesto ? (selectedPuesto[priceKey] ?? 0) : 0;
-  const priceDisplay = (price / 100).toLocaleString("es-AR", {
-    style: "currency",
-    currency: "ARS",
-  });
+  const priceKey = duration === 30 ? "price30" : duration === 60 ? "price60" : "price120";
+  const price    = selectedPuesto ? (selectedPuesto[priceKey] ?? 0) : 0;
+  const priceStr = price > 0
+    ? (price / 100).toLocaleString("es-AR", { style: "currency", currency: "ARS" })
+    : null;
 
-  const getSlotAvailable = (puestoId: string, startTime: string) => {
+  function isAvailable(puestoId: string, startTime: string) {
     const p = dayData?.puestos.find((x) => x.id === puestoId);
-    const slotTimeMs = new Date(startTime).getTime();
-    const slot = p?.slots.find((s) => new Date(s.startTime).getTime() === slotTimeMs);
-    return slot?.available ?? false;
-  };
+    if (!p) return false;
+    const ms = new Date(startTime).getTime();
+    return p.slots.find((s) => new Date(s.startTime).getTime() === ms)?.available ?? false;
+  }
 
   async function handleCheckout() {
     if (!selectedPuestoId || !selectedStartTime) {
-      setError("Selecciona un horario en la grilla");
+      setError("Seleccioná un horario primero");
       return;
     }
     setError(null);
@@ -127,12 +138,8 @@ function ReservaContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear reserva");
-      // Use sandboxInitPoint only when NEXT_PUBLIC_MERCADOPAGO_SANDBOX=true is set.
-      // With production credentials (APP_USR-) always use initPoint.
       const isSandbox = process.env.NEXT_PUBLIC_MERCADOPAGO_SANDBOX === "true";
-      const initPoint = isSandbox
-        ? (data.sandboxInitPoint ?? data.initPoint)
-        : data.initPoint;
+      const initPoint = isSandbox ? (data.sandboxInitPoint ?? data.initPoint) : data.initPoint;
       if (initPoint) window.location.href = initPoint;
       else router.push(`/reserva/confirmacion?bookingId=${data.bookingId}`);
     } catch (e) {
@@ -143,203 +150,362 @@ function ReservaContent() {
   }
 
   const minDate = new Date().toISOString().slice(0, 10);
+  const step: 1 | 2 | 3 = !selectedPuestoId || !selectedStartTime ? 2 : 3;
+
+  // ── Slots for active mobile puesto tab
+  const mobilePuestoData = dayData?.puestos.find((p) => p.id === activeMobilePuestoId);
+  const mobilePuesto     = puestos.find((p) => p.id === activeMobilePuestoId);
 
   return (
-    <main className="min-h-screen bg-slate-50 py-12">
-      <div className="container mx-auto px-4">
-        <Link
-          href="/"
-          className="mb-6 inline-block text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← Volver
-        </Link>
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-auto max-w-4xl"
-        >
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Reservar sesión</CardTitle>
-              <CardDescription>
-                Elige fecha, horario en la grilla (verde = disponible) y duración
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="date">Fecha</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  min={minDate}
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
-              </div>
+    <div className="min-h-screen bg-slate-50">
+      {/* ── Sticky header ─────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+        <div className="container mx-auto flex h-14 items-center justify-between px-4">
+          <Link href="/" className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 transition">
+            <ChevronLeft className="h-4 w-4" />
+            Inicio
+          </Link>
+          <span className="flex items-center gap-1.5 font-semibold text-slate-900 text-sm">
+            <Car className="h-4 w-4" />
+            Reservar sesión
+          </span>
+          <div className="w-16" />
+        </div>
+      </header>
 
-              <div className="space-y-2">
-                <Label>Grilla del día (click en un slot verde)</Label>
-                {loadingSlots ? (
-                  <div className="flex h-48 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
-                    Cargando...
-                  </div>
-                ) : dayData ? (
-                  <>
-                    {dayData.puestos.length === 0 && (
-                      <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-                        No hay simuladores activos o no está cargada la configuración. Entrá a Admin → Puestos y Configuración, y ejecutá <code className="rounded bg-amber-100 px-1">npm run db:push</code> y <code className="rounded bg-amber-100 px-1">npm run db:seed</code> si falta.
-                      </p>
-                    )}
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="w-full min-w-[400px] border-collapse text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="p-2 text-left font-medium text-slate-600">
-                            Hora
-                          </th>
-                          {dayData.puestos.map((p) => (
-                            <th
-                              key={p.id}
-                              className="border-l border-slate-200 p-2 text-center font-medium text-slate-700"
-                            >
-                              <span className="inline-flex items-center gap-1.5">
-                                <motion.span
-                                  animate={{ rotate: [0, 5, -5, 0] }}
-                                  transition={{ repeat: Infinity, duration: 4, repeatDelay: 1 }}
-                                >
-                                  <Car className="h-4 w-4 text-slate-500" />
-                                </motion.span>
-                                {p.name}
-                              </span>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dayData.slots.map((slotTime) => (
-                          <tr
-                            key={slotTime}
-                            className="border-b border-slate-100"
-                          >
-                            <td className="whitespace-nowrap p-2 text-slate-600">
-                              {formatSlotTime(slotTime)}
-                            </td>
-                            {dayData.puestos.map((p) => {
-                              const available = getSlotAvailable(p.id, slotTime);
+      <div className="container mx-auto px-4 py-6 max-w-3xl">
+
+        {/* ── Steps indicator ──────────────────────────────────────────── */}
+        <div className="mb-6 flex items-center gap-2">
+          <StepDot n={1} active={false} done={true} />
+          <div className="h-px flex-1 bg-slate-200" />
+          <StepDot n={2} active={step === 2} done={step > 2} />
+          <div className="h-px flex-1 bg-slate-200" />
+          <StepDot n={3} active={step === 3} done={false} />
+          <span className="ml-2 text-xs text-slate-500">
+            {step === 2 ? "Elegí horario" : step === 3 ? "Confirmá" : ""}
+          </span>
+        </div>
+
+        {/* ── Date + Duration row ─────────────────────────────────────── */}
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="space-y-1.5">
+            <Label htmlFor="date" className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <Calendar className="h-3.5 w-3.5" /> Fecha
+            </Label>
+            <Input
+              id="date"
+              type="date"
+              min={minDate}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-11"
+            />
+          </div>
+          <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <Label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <Clock className="h-3.5 w-3.5" /> Duración
+            </Label>
+            <div className="flex gap-2 h-11">
+              {DURATIONS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDuration(d)}
+                  className={`flex-1 rounded-xl border text-sm font-semibold transition ${
+                    duration === d
+                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {d}m
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Slot grid ──────────────────────────────────────────────── */}
+        <div className="mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Horarios disponibles
+            </p>
+            <span className="flex gap-3 text-xs text-slate-400">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-sm bg-green-200" /> Libre
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-sm bg-slate-900" /> Seleccionado
+              </span>
+            </span>
+          </div>
+
+          {loadingSlots ? (
+            <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-800" />
+            </div>
+          ) : !dayData || dayData.puestos.length === 0 ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <p className="font-medium">No hay simuladores configurados</p>
+              <p className="mt-1 text-amber-700 text-xs">
+                Configurá los puestos y horarios desde el panel de administración.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* ── Mobile / Tablet: tabs per puesto ─────────────────── */}
+              <div className="lg:hidden">
+                {/* Puesto tabs */}
+                <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {dayData.puestos.map((p) => {
+                    const pricingPuesto = puestos.find((x) => x.id === p.id);
+                    const tabPrice = pricingPuesto ? pricingPuesto[priceKey] : 0;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveMobilePuestoId(p.id);
+                          setSelectedPuestoId(null);
+                          setSelectedStartTime(null);
+                        }}
+                        className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition ${
+                          activeMobilePuestoId === p.id
+                            ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Car className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="text-sm font-medium whitespace-nowrap">{p.name}</span>
+                        </div>
+                        {tabPrice > 0 && (
+                          <p className={`mt-0.5 text-xs ${activeMobilePuestoId === p.id ? "text-slate-300" : "text-slate-500"}`}>
+                            ${(tabPrice / 100).toLocaleString("es-AR")}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Time slots grid for active puesto */}
+                <AnimatePresence mode="wait">
+                  {mobilePuestoData && (
+                    <motion.div
+                      key={activeMobilePuestoId}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      {mobilePuestoData.slots.length === 0 ? (
+                        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
+                          No hay horarios disponibles para este simulador hoy
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                            {mobilePuestoData.slots.map((slot) => {
+                              const available = slot.available;
                               const isSelected =
-                                selectedPuestoId === p.id &&
-                                selectedStartTime === slotTime;
+                                selectedPuestoId === activeMobilePuestoId &&
+                                selectedStartTime === slot.startTime;
                               return (
-                                <td
-                                  key={p.id}
-                                  className="border-l border-slate-100 p-1"
+                                <motion.button
+                                  key={slot.startTime}
+                                  type="button"
+                                  disabled={!available}
+                                  onClick={() => {
+                                    if (available && activeMobilePuestoId) {
+                                      setSelectedPuestoId(activeMobilePuestoId);
+                                      setSelectedStartTime(slot.startTime);
+                                    }
+                                  }}
+                                  whileTap={available ? { scale: 0.94 } : {}}
+                                  className={`rounded-xl py-2.5 text-sm font-semibold transition ${
+                                    isSelected
+                                      ? "bg-slate-900 text-white shadow-sm ring-2 ring-slate-900 ring-offset-1"
+                                      : available
+                                      ? "bg-green-50 text-green-800 hover:bg-green-100 active:bg-green-200"
+                                      : "cursor-not-allowed bg-slate-50 text-slate-300"
+                                  }`}
                                 >
-                                  <motion.button
-                                    type="button"
-                                    disabled={!available}
-                                    onClick={() => {
-                                      if (available) {
-                                        setSelectedPuestoId(p.id);
-                                        setSelectedStartTime(slotTime);
-                                      }
-                                    }}
-                                    whileHover={available ? { scale: 1.03 } : {}}
-                                    whileTap={available ? { scale: 0.97 } : {}}
-                                    className={`h-9 w-full rounded-lg text-xs font-medium transition ${
-                                      isSelected
-                                        ? "bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1"
-                                        : available
-                                          ? "bg-green-100 text-green-800 hover:bg-green-200"
-                                          : "cursor-not-allowed bg-slate-100 text-slate-400"
-                                    }`}
-                                  >
-                                    {available ? "Libre" : "—"}
-                                  </motion.button>
-                                </td>
+                                  {fmt(slot.startTime)}
+                                </motion.button>
                               );
                             })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    No hay datos para esta fecha.
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* ── Desktop: full table grid ──────────────────────────── */}
+              <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50">
+                      <th className="w-20 p-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Hora
+                      </th>
+                      {dayData.puestos.map((p) => (
+                        <th key={p.id} className="border-l border-slate-100 p-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <motion.span
+                              animate={{ rotate: [0, 6, -6, 0] }}
+                              transition={{ repeat: Infinity, duration: 4, repeatDelay: 2 }}
+                            >
+                              <Car className="h-3.5 w-3.5 text-slate-400" />
+                            </motion.span>
+                            {p.name}
+                          </span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayData.slots.map((slotTime) => (
+                      <tr key={slotTime} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
+                        <td className="whitespace-nowrap p-3 text-xs font-medium text-slate-500">
+                          {fmt(slotTime)}
+                        </td>
+                        {dayData.puestos.map((p) => {
+                          const available  = isAvailable(p.id, slotTime);
+                          const isSelected = selectedPuestoId === p.id && selectedStartTime === slotTime;
+                          return (
+                            <td key={p.id} className="border-l border-slate-50 p-1.5">
+                              <motion.button
+                                type="button"
+                                disabled={!available}
+                                onClick={() => {
+                                  if (available) {
+                                    setSelectedPuestoId(p.id);
+                                    setSelectedStartTime(slotTime);
+                                  }
+                                }}
+                                whileHover={available ? { scale: 1.04 } : {}}
+                                whileTap={available ? { scale: 0.96 } : {}}
+                                className={`h-9 w-full rounded-lg text-xs font-semibold transition ${
+                                  isSelected
+                                    ? "bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1 shadow-sm"
+                                    : available
+                                    ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                    : "cursor-not-allowed bg-slate-50 text-slate-300"
+                                }`}
+                              >
+                                {available ? "Libre" : "—"}
+                              </motion.button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Selection summary ────────────────────────────────────────── */}
+        <AnimatePresence>
+          {selectedPuestoId && selectedStartTime && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-5"
+            >
+              <div className="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
+                <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-green-900">
+                    {dayData?.puestos.find((p) => p.id === selectedPuestoId)?.name}
                   </p>
-                )}
-                {selectedPuestoId && selectedStartTime && (
-                  <p className="text-sm text-slate-600">
-                    Seleccionado:{" "}
-                    {dayData?.puestos.find((p) => p.id === selectedPuestoId)
-                      ?.name}{" "}
-                    a las {formatSlotTime(selectedStartTime)}
+                  <p className="text-xs text-green-700">
+                    {fmt(selectedStartTime)} · {duration} minutos
+                    {priceStr && ` · ${priceStr}`}
                   </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Duración (minutos)</Label>
-                <div className="flex gap-2">
-                  {DURATIONS.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setDuration(d)}
-                      className={`flex-1 rounded-xl border py-3 text-sm font-medium transition ${
-                        duration === d
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      {d} min
-                    </button>
-                  ))}
                 </div>
+                <button
+                  onClick={() => { setSelectedPuestoId(null); setSelectedStartTime(null); }}
+                  className="ml-auto text-xs text-green-600 hover:text-green-800"
+                >
+                  Cambiar
+                </button>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (para recibir tu código)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+        {/* ── Email ───────────────────────────────────────────────────── */}
+        <div className="mb-5 space-y-1.5">
+          <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Email para recibir tu código (opcional)
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="tu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-11"
+          />
+        </div>
 
-              <div className="rounded-xl bg-slate-100 p-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Total</span>
-                  <span className="text-lg font-semibold">
-                    {selectedPuestoId && selectedStartTime
-                      ? priceDisplay
-                      : "—"}
-                  </span>
-                </div>
-              </div>
+        {/* ── Error ───────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              {error && (
-                <p className="text-sm text-red-600">{error}</p>
-              )}
+        {/* ── Pay button (with price) ──────────────────────────────────── */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between text-sm">
+            <span className="text-slate-500">Total a pagar</span>
+            <span className="text-xl font-bold text-slate-900">
+              {priceStr ?? (selectedPuestoId ? "—" : "Seleccioná un horario")}
+            </span>
+          </div>
+          <Button
+            className="w-full h-12 text-base font-semibold shadow-sm"
+            onClick={handleCheckout}
+            disabled={loading || !selectedPuestoId || !selectedStartTime}
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Procesando...
+              </span>
+            ) : (
+              "Ir a pagar con MercadoPago →"
+            )}
+          </Button>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            Pago seguro · Tarjeta, débito o efectivo
+          </p>
+        </div>
 
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={handleCheckout}
-                disabled={
-                  loading || !selectedPuestoId || !selectedStartTime
-                }
-              >
-                {loading ? "Procesando..." : "Ir a pagar (MercadoPago)"}
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <div className="mt-4 text-center">
+          <Link href="/" className="text-xs text-slate-400 hover:text-slate-600 transition">
+            ← Volver al inicio
+          </Link>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -347,7 +513,7 @@ export default function BookingPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
         </div>
       }
