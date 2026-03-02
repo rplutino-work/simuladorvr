@@ -71,8 +71,6 @@ export default function LandingPage() {
           />
           {/* Dark gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#080C2E]/80 via-[#0D0008]/70 to-[#0D0008]" />
-          {/* Red side accent */}
-          <div className="absolute inset-y-0 left-0 w-1 bg-[#E50014]" />
         </div>
 
         {/* Hero content */}
@@ -176,20 +174,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Second image strip ──────────────────────────────────────── */}
-      <section className="relative h-48 sm:h-64 overflow-hidden">
-        <Image
-          src="https://images.unsplash.com/photo-1541244321-74bfb3e75b93?auto=format&fit=crop&w=1920&q=80"
-          alt="Formula 1 racing"
-          fill
-          className="object-cover object-center"
-          unoptimized
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0D0008] via-transparent to-[#0D0008]" />
-        <div className="absolute inset-0 bg-[#080C2E]/50" />
-        <div className="absolute inset-y-0 left-0 w-1 bg-[#E50014]" />
-        <div className="absolute inset-y-0 right-0 w-1 bg-[#1515A8]" />
-      </section>
+      {/* ── Thin divider between stats and how-it-works ─────────────── */}
+      <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
       {/* ── Cómo funciona ───────────────────────────────────────────── */}
       <section id="como-funciona" className="bg-[#080C2E] py-16 sm:py-24">

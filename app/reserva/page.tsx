@@ -197,7 +197,7 @@ function ReservaContent() {
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-sm text-white/50 hover:text-white transition font-condensed tracking-widest uppercase"
+            className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition font-condensed tracking-widest uppercase"
           >
             <ChevronLeft className="h-4 w-4" />
             INICIO
@@ -215,78 +215,115 @@ function ReservaContent() {
       <div className="container mx-auto px-4 py-8 max-w-3xl">
 
         {/* ── Steps indicator ──────────────────────────────────────────── */}
-        <div className="mb-8 flex items-center gap-2">
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-8 flex items-center gap-2"
+        >
           <StepDot n={1} active={false} done={true} />
           <div className="h-px flex-1 bg-gradient-to-r from-[#E50014]/60 to-white/10" />
           <StepDot n={2} active={step === 2} done={step > 2} />
-          <div className={`h-px flex-1 transition-all ${step > 2 ? "bg-[#E50014]/60" : "bg-white/10"}`} />
+          <div className={`h-px flex-1 transition-all duration-500 ${step > 2 ? "bg-[#E50014]/60" : "bg-white/10"}`} />
           <StepDot n={3} active={step === 3} done={false} />
-          <span className="ml-2 text-xs font-condensed tracking-widest uppercase text-white/40">
+          <span className="ml-2 text-xs font-condensed tracking-widest uppercase text-white/50">
             {step === 2 ? "ELEGÍ HORARIO" : step === 3 ? "CONFIRMÁ" : ""}
           </span>
-        </div>
+        </motion.div>
 
-        {/* ── Date + Duration row ─────────────────────────────────────── */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-[1fr_auto]">
-          {/* Date */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-1.5 text-xs font-condensed font-medium tracking-widest uppercase text-white/40">
-              <Calendar className="h-3.5 w-3.5" /> FECHA
-            </label>
-            <input
-              id="date"
-              type="date"
-              min={minDate}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#080C2E] px-3 text-white font-condensed tracking-wide text-sm focus:outline-none focus:ring-2 focus:ring-[#E50014]/50 focus:border-[#E50014]/50 transition [color-scheme:dark]"
-            />
-          </div>
+        {/* ── Date row ────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.05 }}
+          className="mb-4"
+        >
+          <label className="flex items-center gap-1.5 mb-2 text-xs font-condensed font-semibold tracking-widest uppercase text-white/60">
+            <Calendar className="h-3.5 w-3.5 text-[#E50014]" /> FECHA
+          </label>
+          <input
+            id="date"
+            type="date"
+            min={minDate}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-12 w-full rounded-xl border border-white/15 bg-[#080C2E] px-4 text-white font-condensed tracking-wide text-sm focus:outline-none focus:ring-2 focus:ring-[#E50014]/50 focus:border-[#E50014]/60 transition [color-scheme:dark] hover:border-white/25"
+          />
+        </motion.div>
 
-          {/* Duration */}
-          <div className="space-y-2 col-span-2 sm:col-span-1">
-            <label className="flex items-center gap-1.5 text-xs font-condensed font-medium tracking-widest uppercase text-white/40">
-              <Clock className="h-3.5 w-3.5" /> DURACIÓN
-            </label>
-            <div className="flex gap-2 h-11">
-              {DURATIONS.map((d) => (
-                <motion.button
-                  key={d}
-                  type="button"
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setDuration(d)}
-                  className={`flex-1 rounded-xl border text-sm font-racing tracking-widest uppercase transition-all ${
-                    duration === d
-                      ? "border-[#E50014] bg-[#E50014] text-white shadow-[0_0_12px_rgba(229,0,20,0.4)]"
-                      : "border-white/10 bg-[#080C2E] text-white/50 hover:border-[#E50014]/50 hover:text-white"
-                  }`}
-                >
-                  {d}m
-                </motion.button>
-              ))}
-            </div>
+        {/* ── Duration row (full width, bigger) ──────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.12 }}
+          className="mb-6"
+        >
+          <label className="flex items-center gap-1.5 mb-2 text-xs font-condensed font-semibold tracking-widest uppercase text-white/60">
+            <Clock className="h-3.5 w-3.5 text-[#E50014]" /> DURACIÓN DE LA SESIÓN
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {DURATIONS.map((d, i) => (
+              <motion.button
+                key={d}
+                type="button"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 + i * 0.06 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => setDuration(d)}
+                className={`relative flex flex-col items-center justify-center py-4 rounded-xl border transition-all duration-200 ${
+                  duration === d
+                    ? "border-[#E50014] bg-[#E50014] text-white shadow-[0_0_18px_rgba(229,0,20,0.45)]"
+                    : "border-white/15 bg-[#080C2E] text-white/70 hover:border-[#E50014]/50 hover:bg-[#E50014]/8"
+                }`}
+              >
+                <span className={`font-racing text-3xl leading-none ${duration === d ? "text-white" : "text-white/80"}`}>
+                  {d}
+                </span>
+                <span className={`font-condensed text-xs tracking-widest mt-0.5 ${duration === d ? "text-white/80" : "text-white/40"}`}>
+                  MINUTOS
+                </span>
+                {duration === d && (
+                  <motion.div
+                    layoutId="dur-active"
+                    className="absolute inset-0 rounded-xl ring-2 ring-[#E50014] ring-offset-2 ring-offset-[#0D0008]"
+                  />
+                )}
+              </motion.button>
+            ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Slot grid label ─────────────────────────────────────────── */}
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-condensed font-medium uppercase tracking-widest text-white/40">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.22 }}
+          className="mb-3 flex items-center justify-between"
+        >
+          <p className="text-xs font-condensed font-semibold uppercase tracking-widest text-white/60">
             HORARIOS DISPONIBLES
           </p>
           <span className="flex gap-3 text-xs font-condensed">
-            <span className="flex items-center gap-1.5 text-white/30">
+            <span className="flex items-center gap-1.5 text-white/50">
               <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#E50014]/30 border border-[#E50014]/50" />
               LIBRE
             </span>
-            <span className="flex items-center gap-1.5 text-white/30">
+            <span className="flex items-center gap-1.5 text-white/50">
               <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#E50014]" />
               ELEGIDO
             </span>
           </span>
-        </div>
+        </motion.div>
 
         {/* ── Slot grid ──────────────────────────────────────────────── */}
-        <div className="mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.28 }}
+          className="mb-6"
+        >
           {loadingSlots ? (
             <div className="flex h-40 items-center justify-center rounded-2xl border border-white/10 bg-[#080C2E]">
               <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/10 border-t-[#E50014]" />
@@ -330,8 +367,8 @@ function ReservaContent() {
                         </div>
                         {tabPrice > 0 && (
                           <p
-                            className={`mt-0.5 text-xs font-condensed ${
-                              activeMobilePuestoId === p.id ? "text-white/70" : "text-white/30"
+                            className={`mt-1 text-xs font-racing tracking-wider ${
+                              activeMobilePuestoId === p.id ? "text-white" : "text-white/50"
                             }`}
                           >
                             ${(tabPrice / 100).toLocaleString("es-AR")}
@@ -364,7 +401,7 @@ function ReservaContent() {
                             </p>
                           )}
                           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                            {mobilePuestoData.slots.map((slot) => {
+                            {mobilePuestoData.slots.map((slot, si) => {
                               const available = slot.available;
                               const isSelected =
                                 selectedPuestoId === activeMobilePuestoId &&
@@ -374,6 +411,9 @@ function ReservaContent() {
                                   key={slot.startTime}
                                   type="button"
                                   disabled={!available}
+                                  initial={{ opacity: 0, scale: 0.85 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{ delay: si * 0.018, duration: 0.2 }}
                                   onClick={() => {
                                     if (available && activeMobilePuestoId) {
                                       setSelectedPuestoId(activeMobilePuestoId);
@@ -386,7 +426,7 @@ function ReservaContent() {
                                       ? "bg-[#E50014] text-white shadow-[0_0_12px_rgba(229,0,20,0.5)] ring-2 ring-[#E50014] ring-offset-1 ring-offset-[#080C2E]"
                                       : available
                                       ? "bg-[#E50014]/15 text-[#E50014] border border-[#E50014]/30 hover:bg-[#E50014]/25"
-                                      : "cursor-not-allowed bg-white/5 text-white/15 border border-white/5"
+                                      : "cursor-not-allowed bg-white/5 text-white/20 border border-white/5"
                                   }`}
                                 >
                                   {fmt(slot.startTime)}
@@ -415,17 +455,19 @@ function ReservaContent() {
                         return (
                           <th
                             key={p.id}
-                            className="border-l border-white/10 p-3 text-center text-xs font-condensed font-semibold uppercase tracking-widest text-white/50"
+                            className="border-l border-white/10 p-3 text-center"
                           >
-                            <span className="inline-flex items-center gap-1.5">
-                              <Car className="h-3.5 w-3.5 text-[#E50014]/60" />
-                              {p.name}
-                            </span>
-                            {tabPrice > 0 && (
-                              <span className="ml-1.5 text-[#E50014]/70 font-racing text-sm">
-                                ${(tabPrice / 100).toLocaleString("es-AR")}
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-condensed font-semibold uppercase tracking-widest text-white/70">
+                                <Car className="h-3.5 w-3.5 text-[#E50014]/80 flex-shrink-0" />
+                                {p.name}
                               </span>
-                            )}
+                              {tabPrice > 0 && (
+                                <span className="font-racing text-base tracking-wider text-[#E50014]">
+                                  ${(tabPrice / 100).toLocaleString("es-AR")}
+                                </span>
+                              )}
+                            </div>
                           </th>
                         );
                       })}
@@ -433,13 +475,16 @@ function ReservaContent() {
                   </thead>
                   <tbody>
                     {dayData.slots.map((slotTime, i) => (
-                      <tr
+                      <motion.tr
                         key={slotTime}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.022, duration: 0.25 }}
                         className={`border-b border-white/5 last:border-0 transition-colors ${
-                          i % 2 === 0 ? "bg-transparent" : "bg-white/[0.02]"
+                          i % 2 === 0 ? "bg-transparent" : "bg-white/[0.015]"
                         }`}
                       >
-                        <td className="whitespace-nowrap p-3 text-xs font-racing tracking-wider text-white/40">
+                        <td className="whitespace-nowrap p-3 text-xs font-racing tracking-wider text-white/60">
                           {fmt(slotTime)}
                         </td>
                         {dayData.puestos.map((p) => {
@@ -457,14 +502,14 @@ function ReservaContent() {
                                     setSelectedStartTime(slotTime);
                                   }
                                 }}
-                                whileHover={available ? { scale: 1.05 } : {}}
-                                whileTap={available ? { scale: 0.95 } : {}}
+                                whileHover={available ? { scale: 1.06 } : {}}
+                                whileTap={available ? { scale: 0.94 } : {}}
                                 className={`h-9 w-full rounded-lg text-xs font-racing tracking-wider transition-all ${
                                   isSelected
                                     ? "bg-[#E50014] text-white shadow-[0_0_12px_rgba(229,0,20,0.5)] ring-2 ring-[#E50014] ring-offset-1 ring-offset-[#080C2E]"
                                     : available
                                     ? "bg-[#E50014]/15 text-[#E50014] border border-[#E50014]/30 hover:bg-[#E50014]/25"
-                                    : "cursor-not-allowed bg-white/5 text-white/15"
+                                    : "cursor-not-allowed bg-white/5 text-white/20"
                                 }`}
                               >
                                 {available ? "LIBRE" : "—"}
@@ -472,14 +517,14 @@ function ReservaContent() {
                             </td>
                           );
                         })}
-                      </tr>
+                      </motion.tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </>
           )}
-        </div>
+        </motion.div>
 
         {/* ── Selection summary ────────────────────────────────────────── */}
         <AnimatePresence>
@@ -518,13 +563,18 @@ function ReservaContent() {
         </AnimatePresence>
 
         {/* ── Email ───────────────────────────────────────────────────── */}
-        <div className="mb-6 space-y-2">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.18 }}
+          className="mb-6 space-y-2"
+        >
           <label
             htmlFor="email"
-            className="flex items-center gap-1.5 text-xs font-condensed font-medium uppercase tracking-widest text-white/40"
+            className="flex items-center gap-1.5 text-xs font-condensed font-semibold uppercase tracking-widest text-white/60"
           >
-            EMAIL PARA RECIBIR TU CÓDIGO{" "}
-            <span className="text-white/20 normal-case tracking-normal">(opcional)</span>
+            EMAIL PARA RECIBIR TU CÓDIGO
+            <span className="text-white/30 font-condensed normal-case tracking-normal font-normal">(opcional)</span>
           </label>
           <input
             id="email"
@@ -532,9 +582,9 @@ function ReservaContent() {
             placeholder="tu@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-11 w-full rounded-xl border border-white/10 bg-[#080C2E] px-4 text-white font-condensed tracking-wide text-sm placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#E50014]/50 focus:border-[#E50014]/50 transition"
+            className="h-12 w-full rounded-xl border border-white/15 bg-[#080C2E] px-4 text-white font-condensed tracking-wide text-sm placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#E50014]/50 focus:border-[#E50014]/60 transition hover:border-white/25"
           />
-        </div>
+        </motion.div>
 
         {/* ── Error ───────────────────────────────────────────────────── */}
         <AnimatePresence>
@@ -552,9 +602,14 @@ function ReservaContent() {
         </AnimatePresence>
 
         {/* ── Pay panel ──────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-white/10 bg-[#080C2E] p-5 shadow-xl">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.24 }}
+          className="rounded-2xl border border-white/10 bg-[#080C2E] p-5 shadow-xl"
+        >
           <div className="mb-4 flex items-center justify-between">
-            <span className="font-condensed text-xs tracking-widest uppercase text-white/30">
+            <span className="font-condensed text-xs tracking-widest uppercase text-white/55">
               TOTAL A PAGAR
             </span>
             <span className="font-racing text-3xl tracking-wider text-white">
@@ -592,19 +647,19 @@ function ReservaContent() {
             )}
           </motion.button>
 
-          <div className="mt-3 flex items-center justify-center gap-4 text-xs font-condensed tracking-widest uppercase text-white/20">
+          <div className="mt-3 flex items-center justify-center gap-4 text-xs font-condensed tracking-widest uppercase text-white/35">
             <span>🔒 Pago seguro</span>
             <span>·</span>
             <span>Tarjeta · Débito · Efectivo</span>
             <span>·</span>
             <span>MercadoPago</span>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="mt-4 text-center">
+        <div className="mt-5 text-center">
           <Link
             href="/"
-            className="text-xs font-condensed tracking-widest uppercase text-white/20 hover:text-white/60 transition"
+            className="text-xs font-condensed tracking-widest uppercase text-white/35 hover:text-white/70 transition"
           >
             ← VOLVER AL INICIO
           </Link>
