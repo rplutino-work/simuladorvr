@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   } else if (booking.status === "ACTIVE") {
     canCancel = false;
     reason = "La sesión ya está en curso";
-  } else if (booking.status === "COMPLETED") {
+  } else if (booking.status === "FINISHED" || booking.status === "EXPIRED") {
     canCancel = false;
     reason = "La sesión ya fue completada";
   } else if (!settings?.allowCancel) {
