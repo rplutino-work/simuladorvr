@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   const booking = await prisma.booking.findUnique({
     where: { cancelToken: token },
-    include: { puesto: true, payments: true },
+    include: { puesto: true, payment: true },
   });
 
   if (!booking) {
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Detect if refund is possible (payment is not manual)
-  const payment = booking.payments?.[0];
+  const payment = booking.payment;
   const isManualPayment = !payment || payment.mpPaymentId.startsWith("manual-");
   const effectiveCancelMode =
     isManualPayment ? "MANUAL" : (settings?.cancelMode ?? "MANUAL");
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   const booking = await prisma.booking.findUnique({
     where: { cancelToken: token },
-    include: { puesto: true, payments: true },
+    include: { puesto: true, payment: true },
   });
 
   if (!booking) {
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Detect payment type
-  const payment = booking.payments?.[0];
+  const payment = booking.payment;
   const isManualPayment = !payment || payment.mpPaymentId.startsWith("manual-");
   const effectiveCancelMode =
     isManualPayment ? "MANUAL" : (settings?.cancelMode ?? "MANUAL");
