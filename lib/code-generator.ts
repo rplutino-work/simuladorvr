@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No 0, O, 1, I to avoid confusion
 
 /**
@@ -10,4 +12,11 @@ export function generateBookingCode(): string {
     code += CHARS.charAt(Math.floor(Math.random() * charsLength));
   }
   return code;
+}
+
+/**
+ * Generate a UUID-based token for the self-service cancellation URL
+ */
+export function generateCancelToken(): string {
+  return randomUUID().replace(/-/g, "");
 }

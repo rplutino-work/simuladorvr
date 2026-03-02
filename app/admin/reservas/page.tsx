@@ -457,14 +457,14 @@ export default function ReservasPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Reservas</h1>
-          <p className="mt-1 text-slate-600">Gestión completa de turnos y sesiones</p>
+          <p className="mt-1 text-sm text-slate-600">Gestión completa de turnos y sesiones</p>
         </div>
         <div className="flex items-center gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="Filtrar por estado" />
             </SelectTrigger>
             <SelectContent>
@@ -474,15 +474,16 @@ export default function ReservasPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setShowWalkIn(true)}>
+          <Button onClick={() => setShowWalkIn(true)} className="shrink-0">
             <Plus className="mr-2 h-4 w-4" />
-            Walk-in / Efectivo
+            <span className="hidden sm:inline">Walk-in / Efectivo</span>
+            <span className="sm:hidden">Walk-in</span>
           </Button>
         </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {Object.entries(STATUS_LABELS).map(([status, label]) => {
           const count = bookings.filter((b) => b.status === status).length;
           return (
@@ -498,7 +499,7 @@ export default function ReservasPage() {
         })}
       </div>
 
-      {/* Table */}
+      {/* Bookings list */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de reservas</CardTitle>
@@ -518,188 +519,290 @@ export default function ReservasPage() {
               <p>No hay reservas con este filtro</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Simulador</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Inicio</TableHead>
-                    <TableHead>Dur.</TableHead>
-                    <TableHead>Precio</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookings.map((b) => {
-                    const isActioning = actionLoading?.startsWith(b.id);
-                    return (
-                      <TableRow key={b.id} className="group">
-                        {/* Code */}
-                        <TableCell>
+            <>
+              {/* ── Mobile / Tablet: card list ──────────────────────── */}
+              <div className="space-y-3 lg:hidden">
+                {bookings.map((b) => {
+                  const isActioning = actionLoading?.startsWith(b.id);
+                  return (
+                    <motion.div
+                      key={b.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                      {/* Top row: code + status */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
                           {b.code ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-slate-900 tracking-widest">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-lg font-bold tracking-widest text-slate-900">
                                 {b.code}
                               </span>
                               <button
                                 onClick={() => copyToClipboard(b.code!)}
-                                className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-700"
-                                title="Copiar código"
+                                className="text-slate-400 hover:text-slate-700 transition"
                               >
                                 <Copy className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-xs">Sin código</span>
+                            <span className="text-sm font-medium text-slate-400">Sin código</span>
                           )}
-                        </TableCell>
+                          <p className="text-sm font-medium text-slate-700 mt-0.5">
+                            {b.puesto.name}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
+                          {STATUS_LABELS[b.status] ?? b.status}
+                        </span>
+                      </div>
 
-                        {/* Puesto */}
-                        <TableCell className="font-medium text-sm">{b.puesto.name}</TableCell>
-
-                        {/* Customer */}
-                        <TableCell>
-                          <div className="text-xs space-y-0.5">
-                            {b.customerName && (
-                              <div className="flex items-center gap-1 text-slate-700">
-                                <User className="h-3 w-3 text-slate-400" />
-                                {b.customerName}
-                              </div>
-                            )}
-                            {b.customerEmail && (
-                              <div className="flex items-center gap-1 text-slate-500">
-                                <Mail className="h-3 w-3 text-slate-400" />
-                                <span className="max-w-[140px] truncate">{b.customerEmail}</span>
-                              </div>
-                            )}
-                            {!b.customerName && !b.customerEmail && (
-                              <span className="text-slate-400">—</span>
-                            )}
-                            {b.notes && (
-                              <button
-                                onClick={() => setExpandedNotes(expandedNotes === b.id ? null : b.id)}
-                                className="flex items-center gap-1 text-amber-600 hover:text-amber-700 mt-0.5"
-                              >
-                                <MessageSquare className="h-3 w-3" />
-                                <span>Nota</span>
-                                {expandedNotes === b.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              </button>
-                            )}
+                      {/* Info grid */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
+                        <div>
+                          <p className="text-slate-400">Inicio</p>
+                          <p className="font-medium text-slate-700">
+                            {b.startTime
+                              ? new Date(b.startTime).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+                              : "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Duración · Precio</p>
+                          <p className="font-medium text-slate-700">
+                            {b.duration}min · ${(b.price / 100).toLocaleString("es-AR")}
+                          </p>
+                        </div>
+                        {(b.customerName || b.customerEmail) && (
+                          <div className="col-span-2">
+                            <p className="text-slate-400">Cliente</p>
+                            <p className="font-medium text-slate-700 truncate">
+                              {b.customerName ?? b.customerEmail}
+                            </p>
+                          </div>
+                        )}
+                        {b.notes && (
+                          <div className="col-span-2">
+                            <button
+                              onClick={() => setExpandedNotes(expandedNotes === b.id ? null : b.id)}
+                              className="flex items-center gap-1 text-amber-600 hover:text-amber-700"
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              <span>Ver nota</span>
+                              {expandedNotes === b.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            </button>
                             <AnimatePresence>
-                              {expandedNotes === b.id && b.notes && (
+                              {expandedNotes === b.id && (
                                 <motion.p
                                   initial={{ height: 0, opacity: 0 }}
                                   animate={{ height: "auto", opacity: 1 }}
                                   exit={{ height: 0, opacity: 0 }}
-                                  className="text-xs text-slate-600 bg-amber-50 rounded p-1.5 max-w-[180px]"
+                                  className="mt-1 rounded-lg bg-amber-50 p-2 text-slate-600"
                                 >
                                   {b.notes}
                                 </motion.p>
                               )}
                             </AnimatePresence>
                           </div>
-                        </TableCell>
+                        )}
+                      </div>
 
-                        {/* Time */}
-                        <TableCell className="text-xs text-slate-600 whitespace-nowrap">
-                          {b.startTime
-                            ? new Date(b.startTime).toLocaleString("es-AR", {
-                                dateStyle: "short",
-                                timeStyle: "short",
-                              })
-                            : "—"}
-                        </TableCell>
-
-                        {/* Duration */}
-                        <TableCell className="text-sm text-slate-600">{b.duration}m</TableCell>
-
-                        {/* Price */}
-                        <TableCell className="text-sm font-medium">
-                          ${(b.price / 100).toLocaleString("es-AR")}
-                        </TableCell>
-
-                        {/* Status */}
-                        <TableCell>
-                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
-                            {STATUS_LABELS[b.status] ?? b.status}
-                          </span>
-                        </TableCell>
-
-                        {/* Actions */}
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            {/* PENDING → confirm manual payment */}
-                            {b.status === "PENDING" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={!!isActioning}
-                                onClick={() => handleAction(b.id, "PAID")}
-                                title="Confirmar pago manual (genera código)"
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              >
-                                <CreditCard className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {/* PAID → start session */}
-                            {b.status === "PAID" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={!!isActioning}
-                                onClick={() => handleAction(b.id, "ACTIVE")}
-                                title="Iniciar sesión"
-                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              >
-                                <Play className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {/* ACTIVE → finish */}
-                            {b.status === "ACTIVE" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={!!isActioning}
-                                onClick={() => handleAction(b.id, "FINISHED")}
-                                title="Finalizar sesión"
-                                className="text-slate-600 hover:text-slate-900"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {/* Non-terminal → cancel */}
-                            {!["FINISHED", "EXPIRED", "CANCELLED"].includes(b.status) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={!!isActioning}
-                                onClick={() => handleAction(b.id, "CANCELLED")}
-                                title="Cancelar"
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {/* Detail */}
+                      {/* Actions */}
+                      <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                        <div className="flex flex-wrap gap-1">
+                          {b.status === "PENDING" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!!isActioning}
+                              onClick={() => handleAction(b.id, "PAID")}
+                              className="h-8 px-3 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              <CreditCard className="mr-1 h-3.5 w-3.5" />
+                              Confirmar pago
+                            </Button>
+                          )}
+                          {b.status === "PAID" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!!isActioning}
+                              onClick={() => handleAction(b.id, "ACTIVE")}
+                              className="h-8 px-3 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                            >
+                              <Play className="mr-1 h-3.5 w-3.5" />
+                              Iniciar sesión
+                            </Button>
+                          )}
+                          {b.status === "ACTIVE" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!!isActioning}
+                              onClick={() => handleAction(b.id, "FINISHED")}
+                              className="h-8 px-3 text-xs"
+                            >
+                              <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                              Finalizar
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          {!["FINISHED", "EXPIRED", "CANCELLED"].includes(b.status) && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => openDetail(b)}
-                              title="Ver detalle / notas"
+                              disabled={!!isActioning}
+                              onClick={() => handleAction(b.id, "CANCELLED")}
+                              className="h-8 w-8 text-red-500 hover:bg-red-50"
                             >
-                              <Eye className="h-4 w-4" />
+                              <X className="h-3.5 w-3.5" />
                             </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openDetail(b)}
+                            className="h-8 w-8"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* ── Desktop: table ──────────────────────────────────── */}
+              <div className="hidden overflow-x-auto lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Simulador</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Inicio</TableHead>
+                      <TableHead>Dur.</TableHead>
+                      <TableHead>Precio</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bookings.map((b) => {
+                      const isActioning = actionLoading?.startsWith(b.id);
+                      return (
+                        <TableRow key={b.id} className="group">
+                          <TableCell>
+                            {b.code ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-slate-900 tracking-widest">
+                                  {b.code}
+                                </span>
+                                <button
+                                  onClick={() => copyToClipboard(b.code!)}
+                                  className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-700"
+                                  title="Copiar código"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">Sin código</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">{b.puesto.name}</TableCell>
+                          <TableCell>
+                            <div className="text-xs space-y-0.5">
+                              {b.customerName && (
+                                <div className="flex items-center gap-1 text-slate-700">
+                                  <User className="h-3 w-3 text-slate-400" />
+                                  {b.customerName}
+                                </div>
+                              )}
+                              {b.customerEmail && (
+                                <div className="flex items-center gap-1 text-slate-500">
+                                  <Mail className="h-3 w-3 text-slate-400" />
+                                  <span className="max-w-[140px] truncate">{b.customerEmail}</span>
+                                </div>
+                              )}
+                              {!b.customerName && !b.customerEmail && (
+                                <span className="text-slate-400">—</span>
+                              )}
+                              {b.notes && (
+                                <button
+                                  onClick={() => setExpandedNotes(expandedNotes === b.id ? null : b.id)}
+                                  className="flex items-center gap-1 text-amber-600 hover:text-amber-700 mt-0.5"
+                                >
+                                  <MessageSquare className="h-3 w-3" />
+                                  <span>Nota</span>
+                                  {expandedNotes === b.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                </button>
+                              )}
+                              <AnimatePresence>
+                                {expandedNotes === b.id && b.notes && (
+                                  <motion.p
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="text-xs text-slate-600 bg-amber-50 rounded p-1.5 max-w-[180px]"
+                                  >
+                                    {b.notes}
+                                  </motion.p>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600 whitespace-nowrap">
+                            {b.startTime
+                              ? new Date(b.startTime).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">{b.duration}m</TableCell>
+                          <TableCell className="text-sm font-medium">
+                            ${(b.price / 100).toLocaleString("es-AR")}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
+                              {STATUS_LABELS[b.status] ?? b.status}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              {b.status === "PENDING" && (
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "PAID")} title="Confirmar pago manual" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                  <CreditCard className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {b.status === "PAID" && (
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "ACTIVE")} title="Iniciar sesión" className="text-green-600 hover:text-green-700 hover:bg-green-50">
+                                  <Play className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {b.status === "ACTIVE" && (
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "FINISHED")} title="Finalizar sesión" className="text-slate-600 hover:text-slate-900">
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {!["FINISHED", "EXPIRED", "CANCELLED"].includes(b.status) && (
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "CANCELLED")} title="Cancelar" className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" onClick={() => openDetail(b)} title="Ver detalle / notas">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

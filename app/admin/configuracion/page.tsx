@@ -25,6 +25,13 @@ type Settings = {
   negativeMarginMinutes: number;
   emailEnabled: boolean;
   emailFrom: string | null;
+  cancelMode: "MANUAL" | "AUTOMATIC";
+  contactPhone: string | null;
+};
+
+type CancelRefundForm = {
+  cancelMode: "MANUAL" | "AUTOMATIC";
+  contactPhone: string;
 };
 
 type ScheduleForm = {
@@ -47,8 +54,10 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
+  const [savingCancel, setSavingCancel] = useState(false);
   const [scheduleOk, setScheduleOk] = useState(false);
   const [emailOk, setEmailOk] = useState(false);
+  const [cancelOk, setCancelOk] = useState(false);
 
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     openHour: 10,
@@ -63,6 +72,11 @@ export default function ConfiguracionPage() {
   const [emailForm, setEmailForm] = useState<EmailForm>({
     emailEnabled: true,
     emailFrom: "",
+  });
+
+  const [cancelRefundForm, setCancelRefundForm] = useState<CancelRefundForm>({
+    cancelMode: "MANUAL",
+    contactPhone: "",
   });
 
   // Test email
@@ -91,6 +105,10 @@ export default function ConfiguracionPage() {
         setEmailForm({
           emailEnabled: data.emailEnabled ?? true,
           emailFrom: data.emailFrom ?? "",
+        });
+        setCancelRefundForm({
+          cancelMode: data.cancelMode ?? "MANUAL",
+          contactPhone: data.contactPhone ?? "",
         });
       })
       .catch(() => setSettings(null))
@@ -141,6 +159,31 @@ export default function ConfiguracionPage() {
       console.error(err);
     } finally {
       setSavingEmail(false);
+    }
+  }
+
+  async function handleSaveCancelRefund(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingCancel(true);
+    setCancelOk(false);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cancelMode: cancelRefundForm.cancelMode,
+          contactPhone: cancelRefundForm.contactPhone.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error");
+      setSettings((prev) => ({ ...(prev as Settings), ...data }));
+      setCancelOk(true);
+      setTimeout(() => setCancelOk(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingCancel(false);
     }
   }
 
@@ -404,6 +447,116 @@ export default function ConfiguracionPage() {
                   {savingEmail ? "Guardando..." : "Guardar configuración email"}
                 </Button>
                 {emailOk && (
+                  <motion.span
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center gap-1.5 text-sm text-green-600"
+                  >
+                    <CheckCircle className="h-4 w-4" /> Guardado
+                  </motion.span>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* ── Cancel & Refund settings ──────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Cancelaciones y devoluciones</CardTitle>
+            <CardDescription>
+              Define cómo se procesan las devoluciones cuando un cliente cancela su reserva.
+              El botón de cancelar aparece en el email de confirmación cuando las cancelaciones están habilitadas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveCancelRefund} className="space-y-6">
+              <div className="space-y-3">
+                <Label>Modo de devolución</Label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCancelRefundForm({ ...cancelRefundForm, cancelMode: "MANUAL" })
+                    }
+                    className={`flex flex-col gap-1 rounded-xl border-2 p-4 text-left transition-all ${
+                      cancelRefundForm.cancelMode === "MANUAL"
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <span className="font-semibold text-sm">📞 Manual</span>
+                    <span
+                      className={`text-xs ${
+                        cancelRefundForm.cancelMode === "MANUAL"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      El cliente cancela y contacta al local por WhatsApp para el reembolso
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCancelRefundForm({ ...cancelRefundForm, cancelMode: "AUTOMATIC" })
+                    }
+                    className={`flex flex-col gap-1 rounded-xl border-2 p-4 text-left transition-all ${
+                      cancelRefundForm.cancelMode === "AUTOMATIC"
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <span className="font-semibold text-sm">💳 Automático</span>
+                    <span
+                      className={`text-xs ${
+                        cancelRefundForm.cancelMode === "AUTOMATIC"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      Se procesa el reembolso automático vía MercadoPago (solo pagos online)
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contactPhone">
+                  Número de WhatsApp para contacto de devoluciones
+                  <span className="ml-1.5 text-xs text-slate-400">
+                    — formato internacional sin + (ej: 5491112345678)
+                  </span>
+                </Label>
+                <Input
+                  id="contactPhone"
+                  type="tel"
+                  placeholder="5491112345678"
+                  value={cancelRefundForm.contactPhone}
+                  onChange={(e) =>
+                    setCancelRefundForm({
+                      ...cancelRefundForm,
+                      contactPhone: e.target.value,
+                    })
+                  }
+                />
+                <p className="text-xs text-slate-400">
+                  Este número se muestra al cliente cuando cancela en modo Manual.
+                  También sirve de contacto de respaldo en caso de fallo del reembolso automático.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={savingCancel}>
+                  {savingCancel ? "Guardando..." : "Guardar configuración"}
+                </Button>
+                {cancelOk && (
                   <motion.span
                     initial={{ opacity: 0, x: -4 }}
                     animate={{ opacity: 1, x: 0 }}

@@ -9,6 +9,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   const puestoId = searchParams.get("puestoId");
+  const durationParam = searchParams.get("duration");
+  const durationMinutes = durationParam ? parseInt(durationParam, 10) : undefined;
 
   if (!date) {
     return NextResponse.json(
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   try {
     if (puestoId) {
-      const slots = await getAvailability(date, puestoId);
+      const slots = await getAvailability(date, puestoId, undefined, durationMinutes);
       return NextResponse.json(
         slots.map((s) => ({
           startTime: s.startTime.toISOString(),
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest) {
         }))
       );
     }
-    const day = await getAvailabilityForDay(date);
+    const day = await getAvailabilityForDay(date, durationMinutes);
     return NextResponse.json({
       slots: day.slots.map((d) => d.toISOString()),
       puestos: day.puestos.map((p) => ({

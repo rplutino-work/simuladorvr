@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { generateBookingCode } from "@/lib/code-generator";
+import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 
 /**
@@ -72,11 +72,12 @@ export async function GET(
     }
 
     const mpPaymentIdStr = String(paymentId);
+    const cancelToken = generateCancelToken();
 
     await prisma.$transaction(async (tx) => {
       await tx.booking.update({
         where: { id: booking.id },
-        data: { status: "PAID", code, paymentId: mpPaymentIdStr },
+        data: { status: "PAID", code, paymentId: mpPaymentIdStr, cancelToken },
       });
       // Upsert payment record (webhook may have already created it)
       await tx.payment.upsert({
@@ -106,6 +107,11 @@ export async function GET(
             timeZone: "America/Argentina/Buenos_Aires",
           })
         : "A confirmar";
+      const baseUrl = process.env.NEXTAUTH_URL ?? "";
+      const cancelUrl =
+        bizSettings?.allowCancel && cancelToken
+          ? `${baseUrl}/cancelar?token=${cancelToken}`
+          : null;
       try {
         await sendBookingConfirmationEmail(
           emailTo,
@@ -113,7 +119,8 @@ export async function GET(
           booking.duration,
           startTime,
           booking.puesto.name,
-          bizSettings?.emailFrom
+          bizSettings?.emailFrom,
+          cancelUrl
         );
       } catch (emailErr) {
         console.error("[verify-payment] email error:", emailErr);

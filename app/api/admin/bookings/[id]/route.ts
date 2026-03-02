@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateBookingCode } from "@/lib/code-generator";
+import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { z } from "zod";
 
@@ -68,7 +68,7 @@ export async function PATCH(
 
   const updateData: Record<string, unknown> = { ...parsed.data };
 
-  // When manually setting to PAID and no code yet, generate one + send email
+  // When manually setting to PAID and no code yet, generate one + create Payment record + send email
   if (parsed.data.status === "PAID" && !existing.code) {
     let code = generateBookingCode();
     let exists = await prisma.booking.findUnique({ where: { code } });
@@ -77,6 +77,29 @@ export async function PATCH(
       exists = await prisma.booking.findUnique({ where: { code } });
     }
     updateData.code = code;
+    const cancelToken = generateCancelToken();
+    updateData.cancelToken = cancelToken;
+
+    // Persist booking update + create Payment record in one transaction
+    const updatedBooking = await prisma.$transaction(async (tx) => {
+      const b = await tx.booking.update({
+        where: { id },
+        data: updateData,
+        include: { puesto: true, payment: true },
+      });
+      // Create Payment record so metrics queries can count this income
+      await tx.payment.upsert({
+        where: { bookingId: id },
+        update: { status: "approved", amount: existing.price },
+        create: {
+          bookingId: id,
+          mpPaymentId: `manual-${id}`,
+          amount: existing.price,
+          status: "approved",
+        },
+      });
+      return b;
+    });
 
     // Send email if recipient available
     const settings = await prisma.businessSettings.findFirst();
@@ -92,19 +115,27 @@ export async function PATCH(
             timeZone: "America/Argentina/Buenos_Aires",
           })
         : "A confirmar";
+      const baseUrl = process.env.NEXTAUTH_URL ?? "";
+      const cancelUrl =
+        settings?.allowCancel && cancelToken
+          ? `${baseUrl}/cancelar?token=${cancelToken}`
+          : null;
       try {
         await sendBookingConfirmationEmail(
           emailTo,
           code,
           existing.duration,
           startTime,
-          existing.puesto.name
+          existing.puesto.name,
+          settings?.emailFrom,
+          cancelUrl
         );
       } catch (err) {
         console.error("[admin confirm] email failed:", err);
-        // Non-fatal: continue even if email fails
       }
     }
+
+    return NextResponse.json(updatedBooking);
   }
 
   const booking = await prisma.booking.update({

@@ -80,14 +80,14 @@ function ReservaContent() {
     fetch("/api/puestos").then((r) => r.json()).then(setPuestos).catch(() => {});
   }, []);
 
-  // ── Fetch availability
+  // ── Fetch availability (re-runs when date OR duration changes)
   useEffect(() => {
     if (!date) return;
     setLoadingSlots(true);
     setSelectedPuestoId(null);
     setSelectedStartTime(null);
     setActiveMobilePuestoId(null);
-    fetch(`/api/availability?date=${date}`)
+    fetch(`/api/availability?date=${date}&duration=${duration}`)
       .then((r) => r.json())
       .then((data) => {
         setDayData({ slots: data.slots ?? [], puestos: data.puestos ?? [] });
@@ -102,7 +102,7 @@ function ReservaContent() {
         setError("Error al cargar horarios.");
       })
       .finally(() => setLoadingSlots(false));
-  }, [date]);
+  }, [date, duration]);
 
   const selectedPuesto = puestos.find((p) => p.id === selectedPuestoId);
   const priceKey = duration === 30 ? "price30" : duration === 60 ? "price60" : "price120";
@@ -159,15 +159,15 @@ function ReservaContent() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#080C2E] shadow-lg">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 transition">
+          <Link href="/" className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition font-condensed tracking-wide">
             <ChevronLeft className="h-4 w-4" />
-            Inicio
+            INICIO
           </Link>
-          <span className="flex items-center gap-1.5 font-semibold text-slate-900 text-sm">
-            <Car className="h-4 w-4" />
-            Reservar sesión
+          <span className="flex items-center gap-2 font-racing tracking-widest text-white text-sm">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-[#E50014] text-white font-racing text-xs leading-none">V</span>
+            RESERVAR SESIÓN
           </span>
           <div className="w-16" />
         </div>
@@ -182,7 +182,7 @@ function ReservaContent() {
           <StepDot n={2} active={step === 2} done={step > 2} />
           <div className="h-px flex-1 bg-slate-200" />
           <StepDot n={3} active={step === 3} done={false} />
-          <span className="ml-2 text-xs text-slate-500">
+          <span className="ml-2 text-xs font-condensed tracking-widest uppercase text-slate-500">
             {step === 2 ? "Elegí horario" : step === 3 ? "Confirmá" : ""}
           </span>
         </div>
@@ -212,10 +212,10 @@ function ReservaContent() {
                   key={d}
                   type="button"
                   onClick={() => setDuration(d)}
-                  className={`flex-1 rounded-xl border text-sm font-semibold transition ${
+                  className={`flex-1 rounded-xl border text-sm font-condensed font-bold tracking-widest uppercase transition ${
                     duration === d
-                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      ? "border-[#E50014] bg-[#E50014] text-white shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-[#E50014] hover:text-[#E50014]"
                   }`}
                 >
                   {d}m
@@ -420,20 +420,20 @@ function ReservaContent() {
               exit={{ opacity: 0, height: 0 }}
               className="mb-5"
             >
-              <div className="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
-                <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
+              <div className="flex items-center gap-3 rounded-2xl border border-[#E50014]/30 bg-[#E50014]/8 px-4 py-3">
+                <CheckCircle className="h-5 w-5 flex-shrink-0 text-[#E50014]" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-green-900">
+                  <p className="text-sm font-condensed font-bold tracking-wide uppercase text-slate-900">
                     {dayData?.puestos.find((p) => p.id === selectedPuestoId)?.name}
                   </p>
-                  <p className="text-xs text-green-700">
+                  <p className="text-xs text-slate-600">
                     {fmt(selectedStartTime)} · {duration} minutos
                     {priceStr && ` · ${priceStr}`}
                   </p>
                 </div>
                 <button
                   onClick={() => { setSelectedPuestoId(null); setSelectedStartTime(null); }}
-                  className="ml-auto text-xs text-green-600 hover:text-green-800"
+                  className="ml-auto text-xs font-condensed tracking-widest uppercase text-[#E50014] hover:text-[#8B0000]"
                 >
                   Cambiar
                 </button>
@@ -473,34 +473,38 @@ function ReservaContent() {
         </AnimatePresence>
 
         {/* ── Pay button (with price) ──────────────────────────────────── */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between text-sm">
-            <span className="text-slate-500">Total a pagar</span>
-            <span className="text-xl font-bold text-slate-900">
+            <span className="font-condensed text-xs tracking-widest uppercase text-slate-400">Total a pagar</span>
+            <span className="font-racing text-2xl text-slate-900 tracking-wider">
               {priceStr ?? (selectedPuestoId ? "—" : "Seleccioná un horario")}
             </span>
           </div>
-          <Button
-            className="w-full h-12 text-base font-semibold shadow-sm"
+          <button
+            className={`w-full h-12 rounded-xl font-condensed font-bold tracking-widest uppercase text-sm transition flex items-center justify-center gap-2 ${
+              loading || !selectedPuestoId || !selectedStartTime
+                ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                : "bg-[#E50014] hover:bg-[#ff1a2b] text-white shadow-[0_0_16px_rgba(229,0,20,0.3)]"
+            }`}
             onClick={handleCheckout}
             disabled={loading || !selectedPuestoId || !selectedStartTime}
           >
             {loading ? (
-              <span className="flex items-center gap-2">
+              <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Procesando...
-              </span>
+                PROCESANDO...
+              </>
             ) : (
-              "Ir a pagar con MercadoPago →"
+              "IR A PAGAR CON MERCADOPAGO →"
             )}
-          </Button>
-          <p className="mt-2 text-center text-xs text-slate-400">
+          </button>
+          <p className="mt-2 text-center text-xs font-condensed tracking-widest uppercase text-slate-400">
             Pago seguro · Tarjeta, débito o efectivo
           </p>
         </div>
 
         <div className="mt-4 text-center">
-          <Link href="/" className="text-xs text-slate-400 hover:text-slate-600 transition">
+          <Link href="/" className="text-xs font-condensed tracking-widest uppercase text-slate-400 hover:text-slate-600 transition">
             ← Volver al inicio
           </Link>
         </div>

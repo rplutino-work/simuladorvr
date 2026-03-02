@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { generateBookingCode } from "@/lib/code-generator";
+import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 
 /**
@@ -59,19 +59,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Generate unique code
+    // Generate unique code and cancel token
     let code = generateBookingCode();
     let exists = await prisma.booking.findUnique({ where: { code } });
     while (exists) {
       code = generateBookingCode();
       exists = await prisma.booking.findUnique({ where: { code } });
     }
+    const cancelToken = generateCancelToken();
 
     // Update booking and create payment record
     await prisma.$transaction(async (tx) => {
       await tx.booking.update({
         where: { id: booking.id },
-        data: { status: "PAID", code, paymentId: mpPaymentId },
+        data: { status: "PAID", code, paymentId: mpPaymentId, cancelToken },
       });
       await tx.payment.create({
         data: {
@@ -97,13 +98,19 @@ export async function POST(req: NextRequest) {
             timeZone: "America/Argentina/Buenos_Aires",
           })
         : "A confirmar";
+      const baseUrl = process.env.NEXTAUTH_URL ?? "";
+      const cancelUrl =
+        bizSettings?.allowCancel && cancelToken
+          ? `${baseUrl}/cancelar?token=${cancelToken}`
+          : null;
       await sendBookingConfirmationEmail(
         email,
         code,
         booking.duration,
         startTime,
         booking.puesto.name,
-        bizSettings?.emailFrom
+        bizSettings?.emailFrom,
+        cancelUrl
       );
     }
 

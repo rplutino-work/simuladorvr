@@ -58,3 +58,5 @@ Thumbs.db
 
 # ayuda local (clave SSH para copiar a GitHub)
 GITHUB_SSH_KEY.txt
+
+.vercel

@@ -1,19 +1,64 @@
 @import "tailwindcss";
 
+/* ── Racing color palette ──────────────────────────────────────────── */
 :root {
+  --racing-red:       #E50014;
+  --racing-dark-red:  #8B0000;
+  --racing-black:     #0D0008;
+  --racing-navy:      #080C2E;
+  --racing-blue:      #1515A8;
+
   --background: #f8fafc;
   --foreground: #0f172a;
 }
 
+/* ── Tailwind v4 theme tokens ──────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background:       var(--background);
+  --color-foreground:       var(--foreground);
+
+  /* Racing palette — usable as bg-racing-red, text-racing-navy, etc. */
+  --color-racing-red:       var(--racing-red);
+  --color-racing-dark-red:  var(--racing-dark-red);
+  --color-racing-black:     var(--racing-black);
+  --color-racing-navy:      var(--racing-navy);
+  --color-racing-blue:      var(--racing-blue);
+
+  /* Font families */
+  --font-bebas:             var(--font-bebas);
+  --font-barlow:            var(--font-barlow);
+  --font-barlow-condensed:  var(--font-barlow-condensed);
+  --font-sans:              var(--font-barlow), system-ui, sans-serif;
 }
 
+/* ── Base ──────────────────────────────────────────────────────────── */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-barlow), system-ui, sans-serif;
+}
+
+/* ── Racing utility classes ────────────────────────────────────────── */
+.font-racing {
+  font-family: var(--font-bebas), sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.font-condensed {
+  font-family: var(--font-barlow-condensed), sans-serif;
+}
+
+/* Red accent underline for section titles */
+.racing-underline {
+  position: relative;
+  display: inline-block;
+}
+.racing-underline::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--racing-red);
 }

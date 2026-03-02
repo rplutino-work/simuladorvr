@@ -14,6 +14,8 @@ const updateSettingsSchema = z.object({
   negativeMarginMinutes: z.number().int().min(0).optional(),
   emailEnabled: z.boolean().optional(),
   emailFrom: z.string().max(200).nullable().optional(),
+  cancelMode: z.enum(["MANUAL", "AUTOMATIC"]).optional(),
+  contactPhone: z.string().max(20).nullable().optional(),
 });
 
 /**

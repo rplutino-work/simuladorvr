@@ -46,6 +46,9 @@ model BusinessSettings {
   // Email settings
   emailEnabled          Boolean  @default(true)
   emailFrom             String?  // overrides EMAIL_FROM env var when set
+  // Cancellation & refund settings
+  cancelMode            String   @default("MANUAL") // "MANUAL" | "AUTOMATIC"
+  contactPhone          String?  // WhatsApp number for manual refunds (e.g. 5491112345678)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -88,6 +91,7 @@ model Booking {
   customerEmail String?        // For sending confirmation email
   customerName  String?        // Optional: walk-in customer name
   notes         String?        // Admin internal notes
+  cancelToken   String?        @unique // UUID token for self-service cancellation URL
   createdAt     DateTime       @default(now())
 
   puesto     Puesto         @relation(fields: [puestoId], references: [id], onDelete: Restrict)

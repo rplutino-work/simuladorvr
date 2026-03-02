@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateBookingCode } from "@/lib/code-generator";
+import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { isSlotAvailable } from "@/lib/availability";
 import { z } from "zod";
@@ -60,30 +60,42 @@ export async function POST(req: NextRequest) {
   const priceKey = `price${duration}` as "price30" | "price60" | "price120";
   const price = puesto[priceKey];
 
-  // Generate unique code
+  // Generate unique code and cancel token
   let code = generateBookingCode();
   let exists = await prisma.booking.findUnique({ where: { code } });
   while (exists) {
     code = generateBookingCode();
     exists = await prisma.booking.findUnique({ where: { code } });
   }
+  const cancelToken = generateCancelToken();
 
-  const booking = await prisma.booking.create({
-    data: {
-      puestoId,
-      duration,
-      price,
-      status: "PAID",
-      code,
-      startTime,
-      endTime,
-      customerName: customerName ?? undefined,
-      customerEmail: customerEmail ?? undefined,
-      notes: notes
-        ? `[Walk-in manual] ${notes}`
-        : "[Walk-in manual]",
-    },
-    include: { puesto: true },
+  const booking = await prisma.$transaction(async (tx) => {
+    const b = await tx.booking.create({
+      data: {
+        puestoId,
+        duration,
+        price,
+        status: "PAID",
+        code,
+        cancelToken,
+        startTime,
+        endTime,
+        customerName: customerName ?? undefined,
+        customerEmail: customerEmail ?? undefined,
+        notes: notes ? `[Walk-in manual] ${notes}` : "[Walk-in manual]",
+      },
+      include: { puesto: true },
+    });
+    // Create Payment record so metrics can count this income
+    await tx.payment.create({
+      data: {
+        bookingId: b.id,
+        mpPaymentId: `manual-${b.id}`,
+        amount: price,
+        status: "approved",
+      },
+    });
+    return b;
   });
 
   // Send confirmation email if requested and email provided
@@ -95,13 +107,20 @@ export async function POST(req: NextRequest) {
         timeStyle: "short",
         timeZone: "America/Argentina/Buenos_Aires",
       });
+      const baseUrl = process.env.NEXTAUTH_URL ?? "";
+      const cancelUrl =
+        settings?.allowCancel && cancelToken
+          ? `${baseUrl}/cancelar?token=${cancelToken}`
+          : null;
       try {
         await sendBookingConfirmationEmail(
           customerEmail,
           code,
           duration,
           startTimeFormatted,
-          puesto.name
+          puesto.name,
+          settings?.emailFrom,
+          cancelUrl
         );
       } catch (err) {
         console.error("[manual booking] email failed:", err);

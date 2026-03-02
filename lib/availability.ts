@@ -7,6 +7,10 @@ const DEFAULT_SETTINGS = {
   negativeMarginMinutes: 0,
 };
 
+// Argentina is UTC-3 (no DST). All business-hour slots must be offset so that
+// e.g. openHour=10 becomes 13:00 UTC on the server.
+const AR_TZ_OFFSET_HOURS = 3;
+
 export type SlotInfo = { startTime: Date; available: boolean };
 
 /**
@@ -32,7 +36,8 @@ export async function getBusinessSettings() {
 
 /**
  * Generate time slots for a day between openHour and closeHour.
- * Pass `minTime` to exclude slots that start before that moment (e.g. filter past slots for today).
+ * Hours are treated as Argentina local time (UTC-3) and stored as UTC.
+ * Pass `minTime` to exclude slots that start before that moment (filter past slots for today).
  */
 export function generateSlotsForDay(
   date: Date,
@@ -42,10 +47,13 @@ export function generateSlotsForDay(
   minTime?: Date
 ): Date[] {
   const slots: Date[] = [];
+  // date is parsed from "YYYY-MM-DD" → UTC midnight.
+  // We apply the Argentina offset so that openHour/closeHour are treated as
+  // local Argentina time rather than server UTC time.
   const start = new Date(date);
-  start.setHours(openHour, 0, 0, 0);
+  start.setUTCHours(openHour + AR_TZ_OFFSET_HOURS, 0, 0, 0);
   const end = new Date(date);
-  end.setHours(closeHour, 0, 0, 0);
+  end.setUTCHours(closeHour + AR_TZ_OFFSET_HOURS, 0, 0, 0);
 
   const current = new Date(start);
   while (current < end) {
@@ -53,7 +61,7 @@ export function generateSlotsForDay(
     if (!minTime || current.getTime() >= minTime.getTime() - 60_000) {
       slots.push(new Date(current));
     }
-    current.setMinutes(current.getMinutes() + slotIntervalMinutes);
+    current.setUTCMinutes(current.getUTCMinutes() + slotIntervalMinutes);
   }
   return slots;
 }
@@ -73,16 +81,21 @@ function overlaps(
 
 /**
  * Get availability for a puesto on a given date.
- * When minTime is provided, slots before that time are returned as unavailable.
+ * - `minTime`: slots before this are excluded (today filter)
+ * - `durationMinutes`: the intended booking duration — used to correctly
+ *   determine if a slot has enough room before the next booking. Defaults
+ *   to the configured slotInterval (minimum unit check).
  */
 export async function getAvailability(
   dateStr: string,
   puestoId: string,
-  minTime?: Date
+  minTime?: Date,
+  durationMinutes?: number
 ): Promise<SlotInfo[]> {
   const settings = await getBusinessSettings();
   const date = new Date(dateStr);
-  date.setHours(0, 0, 0, 0);
+  // Keep UTC midnight so setUTCHours in generateSlotsForDay works correctly
+  date.setUTCHours(0, 0, 0, 0);
 
   const slots = generateSlotsForDay(
     date,
@@ -92,10 +105,11 @@ export async function getAvailability(
     minTime
   );
 
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  // Use a wide UTC window to catch all bookings for that calendar day
   const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setUTCHours(23, 59, 59, 999);
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -107,9 +121,22 @@ export async function getAvailability(
   });
 
   const marginMs = settings.negativeMarginMinutes * 60 * 1000;
+  // How long a session starting at this slot would last
+  const effectiveDuration = durationMinutes ?? settings.slotInterval;
+
+  // Argentina close time for this day — no session may end after this
+  const closeTime = new Date(date);
+  closeTime.setUTCHours(settings.closeHour + AR_TZ_OFFSET_HOURS, 0, 0, 0);
 
   return slots.map((slotStart) => {
-    const slotEnd = new Date(slotStart.getTime() + settings.slotInterval * 60 * 1000);
+    // Slot end = start + the intended duration (not just the grid interval)
+    const slotEnd = new Date(slotStart.getTime() + effectiveDuration * 60 * 1000);
+
+    // Block if the session would end after the closing hour
+    if (slotEnd > closeTime) {
+      return { startTime: slotStart, available: false };
+    }
+
     const isOccupied = bookings.some((b) => {
       if (!b.startTime || !b.endTime) return false;
       const exStart = new Date(b.startTime.getTime() - marginMs);
@@ -160,18 +187,21 @@ export type DayAvailabilityPuesto = { id: string; name: string; slots: SlotInfo[
 /**
  * Get availability for all active puestos on a date (for day grid).
  * Automatically filters out past slots when dateStr is today.
+ * Pass `durationMinutes` to apply duration-aware overlap check.
  */
 export async function getAvailabilityForDay(
-  dateStr: string
+  dateStr: string,
+  durationMinutes?: number
 ): Promise<{ slots: Date[]; puestos: DayAvailabilityPuesto[] }> {
   const settings = await getBusinessSettings();
   const date = new Date(dateStr);
-  date.setHours(0, 0, 0, 0);
+  date.setUTCHours(0, 0, 0, 0);
 
-  // Determine if the requested date is today — if so, filter past slots
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const isToday = date.getTime() === today.getTime();
+  // Determine if the requested date is today (Argentina time) — if so, filter past slots.
+  // Compare dates as Argentina local date strings to avoid UTC-midnight boundary issues.
+  const nowAR = new Date(new Date().getTime() - AR_TZ_OFFSET_HOURS * 60 * 60 * 1000);
+  const todayARStr = nowAR.toISOString().slice(0, 10);
+  const isToday = dateStr === todayARStr;
   const minTime = isToday ? new Date() : undefined;
 
   const slots = generateSlotsForDay(
@@ -189,7 +219,7 @@ export async function getAvailabilityForDay(
     puestos.map(async (p) => ({
       id: p.id,
       name: p.name,
-      slots: await getAvailability(dateStr, p.id, minTime),
+      slots: await getAvailability(dateStr, p.id, minTime, durationMinutes),
     }))
   );
   return { slots, puestos: puestosWithSlots };
