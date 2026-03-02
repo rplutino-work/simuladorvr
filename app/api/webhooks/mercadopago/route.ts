@@ -46,6 +46,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing booking reference" }, { status: 400 });
     }
 
+    // ── Extension payment: "ext-{bookingId}-{additionalMinutes}" ──────────
+    if (externalRef.startsWith("ext-")) {
+      const parts = externalRef.split("-");
+      // format: ext-{bookingId}-{additionalMinutes}
+      const additionalMinutes = parseInt(parts[parts.length - 1], 10);
+      const bookingId = parts.slice(1, -1).join("-");
+
+      if (!bookingId || isNaN(additionalMinutes)) {
+        return NextResponse.json({ error: "Invalid extension reference" }, { status: 400 });
+      }
+
+      const extBooking = await prisma.booking.findUnique({ where: { id: bookingId } });
+      if (!extBooking || extBooking.status !== "ACTIVE") {
+        return NextResponse.json({ ok: true }); // session may have ended, ignore
+      }
+
+      const currentEnd = extBooking.endTime ?? new Date();
+      const newEnd = new Date(currentEnd.getTime() + additionalMinutes * 60 * 1000);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: { endTime: newEnd },
+        });
+        await tx.payment.upsert({
+          where: { bookingId },
+          create: {
+            bookingId,
+            mpPaymentId,
+            amount: mpPayment.transaction_amount ? Math.round(mpPayment.transaction_amount * 100) : 0,
+            status: "approved",
+          },
+          update: {
+            status: "approved",
+          },
+        });
+      });
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── Normal booking payment ─────────────────────────────────────────────
     const booking = await prisma.booking.findUnique({
       where: { id: externalRef },
       include: { puesto: true },
