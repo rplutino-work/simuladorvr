@@ -675,19 +675,18 @@ export default function ReservasPage() {
                 })}
               </div>
 
-              {/* ── Desktop: table ──────────────────────────────────── */}
-              <div className="hidden overflow-x-auto lg:block">
-                <Table>
+              {/* ── Desktop: table (no horizontal scroll) ───────────── */}
+              <div className="hidden lg:block">
+                <Table className="table-fixed w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Simulador</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Inicio</TableHead>
-                      <TableHead>Dur.</TableHead>
-                      <TableHead>Precio</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="w-28">Código</TableHead>
+                      <TableHead className="w-28">Simulador</TableHead>
+                      <TableHead className="w-auto">Cliente</TableHead>
+                      <TableHead className="w-32 whitespace-nowrap">Inicio</TableHead>
+                      <TableHead className="w-16">Dur. / $</TableHead>
+                      <TableHead className="w-24">Estado</TableHead>
+                      <TableHead className="w-28 text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -695,37 +694,42 @@ export default function ReservasPage() {
                       const isActioning = actionLoading?.startsWith(b.id);
                       return (
                         <TableRow key={b.id} className="group">
-                          <TableCell>
+                          {/* Código */}
+                          <TableCell className="py-2">
                             {b.code ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-bold text-slate-900 tracking-widest">
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono font-bold text-slate-900 text-xs tracking-widest">
                                   {b.code}
                                 </span>
                                 <button
                                   onClick={() => copyToClipboard(b.code!)}
-                                  className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-700"
-                                  title="Copiar código"
+                                  className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-700 flex-shrink-0"
+                                  title="Copiar"
                                 >
-                                  <Copy className="h-3.5 w-3.5" />
+                                  <Copy className="h-3 w-3" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-slate-400 text-xs">Sin código</span>
+                              <span className="text-slate-400 text-xs">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium text-sm">{b.puesto.name}</TableCell>
-                          <TableCell>
-                            <div className="text-xs space-y-0.5">
+                          {/* Simulador */}
+                          <TableCell className="py-2 text-sm font-medium truncate max-w-[6rem]">
+                            {b.puesto.name}
+                          </TableCell>
+                          {/* Cliente */}
+                          <TableCell className="py-2">
+                            <div className="text-xs space-y-0.5 min-w-0">
                               {b.customerName && (
-                                <div className="flex items-center gap-1 text-slate-700">
-                                  <User className="h-3 w-3 text-slate-400" />
-                                  {b.customerName}
+                                <div className="flex items-center gap-1 text-slate-700 truncate">
+                                  <User className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                                  <span className="truncate">{b.customerName}</span>
                                 </div>
                               )}
                               {b.customerEmail && (
-                                <div className="flex items-center gap-1 text-slate-500">
-                                  <Mail className="h-3 w-3 text-slate-400" />
-                                  <span className="max-w-[140px] truncate">{b.customerEmail}</span>
+                                <div className="flex items-center gap-1 text-slate-500 truncate">
+                                  <Mail className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                                  <span className="truncate">{b.customerEmail}</span>
                                 </div>
                               )}
                               {!b.customerName && !b.customerEmail && (
@@ -737,7 +741,7 @@ export default function ReservasPage() {
                                   className="flex items-center gap-1 text-amber-600 hover:text-amber-700 mt-0.5"
                                 >
                                   <MessageSquare className="h-3 w-3" />
-                                  <span>Nota</span>
+                                  <span>{expandedNotes === b.id ? "Ocultar" : "Nota"}</span>
                                   {expandedNotes === b.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                                 </button>
                               )}
@@ -747,7 +751,7 @@ export default function ReservasPage() {
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: "auto", opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }}
-                                    className="text-xs text-slate-600 bg-amber-50 rounded p-1.5 max-w-[180px]"
+                                    className="text-xs text-slate-600 bg-amber-50 rounded p-1.5"
                                   >
                                     {b.notes}
                                   </motion.p>
@@ -755,44 +759,49 @@ export default function ReservasPage() {
                               </AnimatePresence>
                             </div>
                           </TableCell>
-                          <TableCell className="text-xs text-slate-600 whitespace-nowrap">
+                          {/* Inicio */}
+                          <TableCell className="py-2 text-xs text-slate-600 whitespace-nowrap">
                             {b.startTime
                               ? new Date(b.startTime).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
                               : "—"}
                           </TableCell>
-                          <TableCell className="text-sm text-slate-600">{b.duration}m</TableCell>
-                          <TableCell className="text-sm font-medium">
-                            ${(b.price / 100).toLocaleString("es-AR")}
+                          {/* Dur + Precio combinados */}
+                          <TableCell className="py-2 text-xs text-slate-600">
+                            <span className="font-medium">{b.duration}m</span>
+                            <br />
+                            <span className="text-slate-500">${(b.price / 100).toLocaleString("es-AR")}</span>
                           </TableCell>
-                          <TableCell>
-                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
+                          {/* Estado */}
+                          <TableCell className="py-2">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
                               {STATUS_LABELS[b.status] ?? b.status}
                             </span>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-1">
+                          {/* Acciones */}
+                          <TableCell className="py-2">
+                            <div className="flex items-center justify-end gap-0.5">
                               {b.status === "PENDING" && (
-                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "PAID")} title="Confirmar pago manual" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                                  <CreditCard className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "PAID")} title="Confirmar pago" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                  <CreditCard className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                               {b.status === "PAID" && (
-                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "ACTIVE")} title="Iniciar sesión" className="text-green-600 hover:text-green-700 hover:bg-green-50">
-                                  <Play className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "ACTIVE")} title="Iniciar sesión" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50">
+                                  <Play className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                               {b.status === "ACTIVE" && (
-                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "FINISHED")} title="Finalizar sesión" className="text-slate-600 hover:text-slate-900">
-                                  <CheckCircle className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "FINISHED")} title="Finalizar sesión" className="h-7 w-7 text-slate-600 hover:text-slate-900">
+                                  <CheckCircle className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                               {!["FINISHED", "EXPIRED", "CANCELLED"].includes(b.status) && (
-                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "CANCELLED")} title="Cancelar" className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                  <X className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" disabled={!!isActioning} onClick={() => handleAction(b.id, "CANCELLED")} title="Cancelar" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50">
+                                  <X className="h-3.5 w-3.5" />
                                 </Button>
                               )}
-                              <Button variant="ghost" size="icon" onClick={() => openDetail(b)} title="Ver detalle / notas">
-                                <Eye className="h-4 w-4" />
+                              <Button variant="ghost" size="icon" onClick={() => openDetail(b)} title="Ver detalle" className="h-7 w-7">
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </TableCell>
