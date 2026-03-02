@@ -81,9 +81,9 @@ export async function POST(req: NextRequest) {
       process.env.NEXTAUTH_URL ??
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-    // notification_url is required for the webhook to fire on payment approval.
-    // Must be a publicly accessible URL — won't work on localhost without a tunnel.
-    const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
+    // notification_url and auto_return require a publicly accessible HTTPS URL.
+    // On localhost MercadoPago cannot reach them, so we skip them.
+    const isPublicUrl = baseUrl.startsWith("https://") && !baseUrl.includes("localhost");
 
     const preferenceResult = await preference.create({
       body: {
@@ -97,13 +97,15 @@ export async function POST(req: NextRequest) {
           },
         ],
         external_reference: booking.id,
-        notification_url: notificationUrl,
+        ...(isPublicUrl && {
+          notification_url: `${baseUrl}/api/webhooks/mercadopago`,
+          auto_return: "approved",
+        }),
         back_urls: {
           success: `${baseUrl}/reserva/confirmacion?bookingId=${booking.id}`,
           failure: `${baseUrl}/reserva?error=payment_failed`,
           pending: `${baseUrl}/reserva/confirmacion?bookingId=${booking.id}`,
         },
-        auto_return: "approved",
         metadata: { booking_id: booking.id },
       },
     });
