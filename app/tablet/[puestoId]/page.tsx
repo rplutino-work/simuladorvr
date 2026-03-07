@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import QRCode from "react-qr-code";
+import { useAutoReload } from "@/lib/use-auto-reload";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ function ProgressRing({ pct, warning }: { pct: number; warning: boolean }) {
 
 // ─── Main component ─────────────────────────────────────────────────────────
 export default function TabletPage() {
+  useAutoReload();
   const params = useParams();
   const puestoId = params?.puestoId as string;
 

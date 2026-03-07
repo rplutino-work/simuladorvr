@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAutoReload } from "@/lib/use-auto-reload";
 
 type SessionData = {
   bookingId: string;
@@ -68,6 +69,7 @@ function tryNativeBridge(method: string) {
 }
 
 export default function TVPage() {
+  useAutoReload();
   const params = useParams();
   const rawPuestoId = params?.puestoId as string;
   const [resolvedId, setResolvedId] = useState<string | null>(null);
