@@ -126,7 +126,6 @@ export default function TabletPage() {
   const [extendUrl, setExtendUrl] = useState("");
   const [extendAmount, setExtendAmount] = useState(0);
   const [extendMinutes, setExtendMinutes] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const screensaverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -209,12 +208,6 @@ export default function TabletPage() {
     };
   }, []);
 
-  // ── Focus input when entering input state ───────────────────────────────
-  useEffect(() => {
-    if (state === "input") {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [state]);
 
   // ── On mount: check if there's already an active session ───────────────
   useEffect(() => {
@@ -414,65 +407,133 @@ export default function TabletPage() {
           </motion.div>
         )}
 
-        {/* ── INPUT ───────────────────────────────────────────────────── */}
+        {/* ── INPUT + CUSTOM KEYBOARD ─────────────────────────────── */}
         {state === "input" && (
           <motion.div
             key="input"
-            className="absolute inset-0 flex flex-col items-center justify-center px-8"
+            className="absolute inset-0 flex flex-col items-center justify-between px-6 py-6"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.35 }}
           >
-            <div className="w-full max-w-lg">
-              {/* Header */}
-              <div className="mb-10 text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-[#E50014]">
-                  <span className="font-racing text-2xl text-white">V</span>
-                </div>
-                <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
-                  INGRESÁ TU CÓDIGO
-                </h2>
-                <p className="font-condensed text-sm tracking-widest uppercase text-white/40">
-                  El código te llegó al email al confirmar el pago
-                </p>
+            {/* Top: Header + Code Display */}
+            <div className="w-full max-w-2xl text-center pt-2">
+              <h2 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-1">
+                INGRESÁ TU CÓDIGO
+              </h2>
+              <p className="font-condensed text-xs tracking-widest uppercase text-white/40">
+                El código te llegó al email al confirmar el pago
+              </p>
+            </div>
+
+            {/* Code display boxes */}
+            <div className="flex gap-4 justify-center">
+              {[0, 1, 2, 3].map((i) => (
+                <motion.div
+                  key={i}
+                  className={`w-20 h-24 sm:w-24 sm:h-28 rounded-2xl border-2 flex items-center justify-center transition-all duration-200 ${
+                    codeInput.length === i
+                      ? "border-[#E50014] bg-[#E50014]/10 shadow-[0_0_20px_rgba(229,0,20,0.3)]"
+                      : codeInput[i]
+                      ? "border-white/30 bg-white/10"
+                      : "border-white/10 bg-white/5"
+                  }`}
+                  animate={codeInput.length === i ? { scale: [1, 1.03, 1] } : {}}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  <span className="font-racing text-5xl sm:text-6xl text-white">
+                    {codeInput[i] || ""}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Custom Keyboard */}
+            <div className="w-full max-w-2xl">
+              {/* Row 1: Numbers */}
+              <div className="flex gap-2 justify-center mb-2">
+                {["2", "3", "4", "5", "6", "7", "8", "9"].map((key) => (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
+                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
+                  >
+                    {key}
+                  </motion.button>
+                ))}
               </div>
 
-              {/* Code input */}
-              <div className="relative mb-6">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  maxLength={4}
-                  value={codeInput}
-                  onChange={(e) => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && handleActivate()}
-                  placeholder="AB12"
-                  className="w-full rounded-2xl border-2 border-white/15 bg-white/5 px-8 py-6 text-center font-mono text-5xl font-bold tracking-[0.6em] text-white placeholder:text-white/15 focus:border-[#E50014]/70 focus:outline-none focus:bg-[#E50014]/5 transition-all uppercase"
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  inputMode="text"
-                />
+              {/* Row 2: A-J */}
+              <div className="flex gap-2 justify-center mb-2">
+                {["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"].map((key) => (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
+                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
+                  >
+                    {key}
+                  </motion.button>
+                ))}
               </div>
 
-              {/* Confirm button */}
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={handleActivate}
-                disabled={codeInput.trim().length !== 4}
-                className={`w-full rounded-2xl py-5 font-racing text-2xl tracking-[0.2em] uppercase transition-all ${
-                  codeInput.trim().length === 4
-                    ? "bg-[#E50014] text-white shadow-[0_0_30px_rgba(229,0,20,0.4)]"
-                    : "bg-white/5 text-white/20 cursor-not-allowed"
-                }`}
-              >
-                INICIAR SESIÓN →
-              </motion.button>
+              {/* Row 3: L-X */}
+              <div className="flex gap-2 justify-center mb-2">
+                {["L", "M", "N", "P", "Q", "R", "S", "T", "U", "V"].map((key) => (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
+                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
+                  >
+                    {key}
+                  </motion.button>
+                ))}
+              </div>
 
-              {/* Back */}
+              {/* Row 4: W-Z + Delete + Confirm */}
+              <div className="flex gap-2 justify-center mt-1">
+                {["W", "X", "Y", "Z"].map((key) => (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
+                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
+                  >
+                    {key}
+                  </motion.button>
+                ))}
+
+                {/* Delete */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setCodeInput((p) => p.slice(0, -1))}
+                  className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl border border-white/20 bg-white/10 flex items-center justify-center font-condensed text-base tracking-wider text-white/60 active:bg-red-900/30 transition-colors"
+                >
+                  ← BORRAR
+                </motion.button>
+
+                {/* Confirm */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleActivate}
+                  disabled={codeInput.length !== 4}
+                  className={`flex-1 h-14 sm:h-16 rounded-xl font-racing text-xl tracking-widest transition-all ${
+                    codeInput.length === 4
+                      ? "bg-[#E50014] text-white shadow-[0_0_24px_rgba(229,0,20,0.4)]"
+                      : "bg-white/5 text-white/15 cursor-not-allowed"
+                  }`}
+                >
+                  INICIAR →
+                </motion.button>
+              </div>
+
+              {/* Back button */}
               <button
-                onClick={() => setState("screensaver")}
-                className="mt-6 w-full py-3 font-condensed text-sm tracking-widest uppercase text-white/25 hover:text-white/50 transition"
+                onClick={() => { setCodeInput(""); setState("screensaver"); }}
+                className="mt-3 w-full py-2 font-condensed text-xs tracking-widest uppercase text-white/20 hover:text-white/40 transition"
               >
                 ← VOLVER
               </button>
