@@ -440,15 +440,15 @@ export default function TabletPage() {
                 <input
                   ref={inputRef}
                   type="text"
-                  maxLength={6}
+                  maxLength={10}
                   value={codeInput}
-                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                  onChange={(e) => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && handleActivate()}
                   placeholder="ABC123"
-                  className="w-full rounded-2xl border-2 border-white/15 bg-white/5 px-8 py-6 text-center font-mono text-5xl font-bold tracking-[0.5em] text-white placeholder:text-white/15 focus:border-[#E50014]/70 focus:outline-none focus:bg-[#E50014]/5 transition-all uppercase"
-                  style={{ letterSpacing: "0.5em" }}
+                  className="w-full rounded-2xl border-2 border-white/15 bg-white/5 px-8 py-6 text-center font-mono text-4xl font-bold tracking-[0.4em] text-white placeholder:text-white/15 focus:border-[#E50014]/70 focus:outline-none focus:bg-[#E50014]/5 transition-all uppercase"
                   autoComplete="off"
                   autoCapitalize="characters"
+                  inputMode="text"
                 />
               </div>
 
