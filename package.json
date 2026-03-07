@@ -16,10 +16,10 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@capacitor/android": "^8.1.0",
+    "@capacitor/android": "^8.2.0",
     "@capacitor/app": "^8.0.1",
-    "@capacitor/cli": "^7.5.0",
-    "@capacitor/core": "^8.1.0",
+    "@capacitor/cli": "^7.6.0",
+    "@capacitor/core": "^8.2.0",
     "@capacitor/screen-orientation": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
     "@prisma/client": "6.19.2",

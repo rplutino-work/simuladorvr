@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   // This way the tablet app always has the latest version without rebuilding.
   webDir: "public", // fallback (not used when server.url is set)
   server: {
-    url: "https://simuladorvr.vercel.app",
+    url: "https://simuladorvr.vercel.app/tablet",
     cleartext: false, // HTTPS only
     androidScheme: "https",
   },
