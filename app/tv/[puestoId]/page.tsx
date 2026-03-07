@@ -106,12 +106,12 @@ export default function TVPage() {
 
       if (data.puestoName) setPuestoName(data.puestoName);
 
-      // Screen power: off if outside business hours or puesto disabled
+      // TV power: off if outside business hours or puesto disabled
       const shouldBeOn = data.screenOn !== false;
 
       if (!shouldBeOn && screenStateRef.current) {
         screenStateRef.current = false;
-        tryNativeBridge("screenOff");
+        tryNativeBridge("turnOff");
         setState("off");
         setSession(null);
         prevSessionRef.current = null;
@@ -120,7 +120,7 @@ export default function TVPage() {
 
       if (shouldBeOn && !screenStateRef.current) {
         screenStateRef.current = true;
-        tryNativeBridge("screenOn");
+        tryNativeBridge("turnOn");
         setState("idle");
       }
 
@@ -132,7 +132,7 @@ export default function TVPage() {
 
         if (!prevSessionRef.current || prevSessionRef.current !== data.session.bookingId) {
           prevSessionRef.current = data.session.bookingId;
-          tryNativeBridge("screenOn");
+          tryNativeBridge("turnOn");
           setState("redirecting");
 
           if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
