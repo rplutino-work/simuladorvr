@@ -16,16 +16,37 @@ type TVState = "idle" | "redirecting" | "game" | "finished";
 const POLL_MS = 3000;
 const REDIRECT_DELAY_MS = 3000;
 
-function RacingBackground() {
+function RacingLines() {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(8)].map((_, i) => (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {[...Array(6)].map((_, i) => (
         <motion.div
           key={i}
-          className="absolute h-px bg-gradient-to-r from-transparent via-[#E50014]/20 to-transparent"
-          style={{ top: `${12 + i * 12}%`, width: "200%" }}
-          animate={{ x: ["-100%", "0%"] }}
-          transition={{ duration: 8 + i * 2, repeat: Infinity, ease: "linear" }}
+          className="absolute h-px bg-gradient-to-r from-transparent via-[#E50014] to-transparent opacity-40"
+          style={{ top: `${15 + i * 14}%`, left: 0, right: 0 }}
+          initial={{ x: "-100%" }}
+          animate={{ x: "200%" }}
+          transition={{
+            duration: 3 + i * 0.7,
+            repeat: Infinity,
+            delay: i * 0.5,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={`b${i}`}
+          className="absolute h-0.5 bg-gradient-to-r from-transparent via-white to-transparent opacity-15"
+          style={{ top: `${30 + i * 20}%`, left: 0, right: 0 }}
+          initial={{ x: "-100%" }}
+          animate={{ x: "200%" }}
+          transition={{
+            duration: 5 + i,
+            repeat: Infinity,
+            delay: 1.5 + i * 0.8,
+            ease: "linear",
+          }}
         />
       ))}
     </div>
@@ -130,33 +151,42 @@ export default function TVPage() {
   }, []);
 
   return (
-    <div className={`fixed inset-0 overflow-hidden select-none transition-colors duration-1000 ${
-      state === "finished" ? "bg-[#001a00]" : "bg-[#0D0008]"
-    }`}>
-      <RacingBackground />
+    <div className="fixed inset-0 overflow-hidden select-none bg-black">
+      <RacingLines />
 
       <AnimatePresence mode="wait">
-        {/* IDLE — Logo pulsando, disponible */}
+        {/* IDLE — Logo + Disponible (mismo estilo tablet) */}
         {state === "idle" && (
           <motion.div
             key="idle"
             className="absolute inset-0 flex flex-col items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.6 }}
           >
-            <motion.h1
-              className="font-racing text-6xl md:text-8xl text-white tracking-wider"
-              animate={{ opacity: [0.3, 0.6, 0.3] }}
-              transition={{ duration: 4, repeat: Infinity }}
+            <motion.div
+              animate={{ scale: [1, 1.03, 1] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="text-center"
             >
-              SIMULADOR<span className="text-[#E50014]">VR</span>
-            </motion.h1>
-            <p className="font-condensed text-2xl text-white/30 tracking-[0.3em] mt-6 uppercase">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
+                  <span className="font-racing text-4xl text-white">V</span>
+                </div>
+                <h1 className="font-racing text-6xl md:text-8xl tracking-widest text-white">
+                  SIMULADOR<span className="text-[#E50014]">VR</span>
+                </h1>
+              </div>
+              <div className="mx-auto h-0.5 w-40 bg-[#E50014] opacity-80" />
+            </motion.div>
+
+            <p className="font-condensed text-xl text-white/40 tracking-[0.4em] mt-8 uppercase">
               {puestoName || `Puesto ${rawPuestoId}`} — Disponible
             </p>
+
             <motion.div
-              className="mt-12 w-3 h-3 rounded-full bg-green-500"
+              className="mt-10 w-3 h-3 rounded-full bg-green-500"
               animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 2, repeat: Infinity }}
             />
@@ -173,11 +203,9 @@ export default function TVPage() {
             exit={{ opacity: 0, scale: 1.05 }}
           >
             <div className="flex flex-col items-center text-center px-8">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="mb-8 h-16 w-16 rounded-full border-4 border-white/10 border-t-[#E50014]"
-              />
+              <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
+                <span className="font-racing text-4xl text-white">V</span>
+              </div>
 
               {session.customerName && (
                 <motion.p
@@ -186,7 +214,7 @@ export default function TVPage() {
                   transition={{ delay: 0.2 }}
                   className="font-racing text-3xl text-[#E50014] tracking-wider mb-6"
                 >
-                  {session.customerName.toUpperCase()}
+                  BIENVENIDO, {session.customerName.toUpperCase()}
                 </motion.p>
               )}
 
@@ -198,6 +226,12 @@ export default function TVPage() {
               >
                 PREPARANDO TU SESIÓN
               </motion.h2>
+
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                className="my-6 h-12 w-12 rounded-full border-4 border-white/10 border-t-[#E50014]"
+              />
 
               <motion.p
                 initial={{ opacity: 0 }}
@@ -235,28 +269,47 @@ export default function TVPage() {
           </motion.div>
         )}
 
-        {/* FINISHED — Sesión finalizada */}
+        {/* FINISHED — Sesión finalizada (mismo estilo tablet) */}
         {state === "finished" && (
           <motion.div
             key="finished"
             className="absolute inset-0 flex flex-col items-center justify-center"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
           >
             <motion.div
-              className="text-6xl mb-6"
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 0.5 }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1, rotate: [0, -5, 5, 0] }}
+              transition={{ duration: 0.5, type: "spring" }}
+              className="mb-6 text-7xl"
             >
               🏁
             </motion.div>
-            <h2 className="font-racing text-5xl text-white tracking-wider">
-              SESIÓN FINALIZADA
-            </h2>
-            <p className="font-condensed text-xl text-white/40 tracking-wider mt-4">
-              Gracias por tu visita
-            </p>
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="font-racing text-5xl md:text-7xl tracking-widest text-white mb-4"
+            >
+              ¡SESIÓN FINALIZADA!
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="font-racing text-2xl tracking-widest text-[#E50014] mb-4"
+            >
+              ¡GRACIAS POR CORRER CON NOSOTROS!
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="mt-6 font-condensed text-sm tracking-[0.3em] uppercase text-white/20"
+            >
+              Volviendo al inicio en unos segundos...
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
