@@ -243,8 +243,8 @@ export default function TabletPage() {
 
   async function handleActivate() {
     const trimmed = codeInput.trim().toUpperCase();
-    if (trimmed.length < 4) {
-      setErrorMsg("El código debe tener al menos 4 caracteres");
+    if (trimmed.length !== 4) {
+      setErrorMsg("El código debe tener 4 caracteres");
       return;
     }
     setState("validating");
@@ -440,12 +440,12 @@ export default function TabletPage() {
                 <input
                   ref={inputRef}
                   type="text"
-                  maxLength={10}
+                  maxLength={4}
                   value={codeInput}
                   onChange={(e) => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && handleActivate()}
-                  placeholder="ABC123"
-                  className="w-full rounded-2xl border-2 border-white/15 bg-white/5 px-8 py-6 text-center font-mono text-4xl font-bold tracking-[0.4em] text-white placeholder:text-white/15 focus:border-[#E50014]/70 focus:outline-none focus:bg-[#E50014]/5 transition-all uppercase"
+                  placeholder="AB12"
+                  className="w-full rounded-2xl border-2 border-white/15 bg-white/5 px-8 py-6 text-center font-mono text-5xl font-bold tracking-[0.6em] text-white placeholder:text-white/15 focus:border-[#E50014]/70 focus:outline-none focus:bg-[#E50014]/5 transition-all uppercase"
                   autoComplete="off"
                   autoCapitalize="characters"
                   inputMode="text"
@@ -456,9 +456,9 @@ export default function TabletPage() {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleActivate}
-                disabled={codeInput.trim().length < 4}
+                disabled={codeInput.trim().length !== 4}
                 className={`w-full rounded-2xl py-5 font-racing text-2xl tracking-[0.2em] uppercase transition-all ${
-                  codeInput.trim().length >= 4
+                  codeInput.trim().length === 4
                     ? "bg-[#E50014] text-white shadow-[0_0_30px_rgba(229,0,20,0.4)]"
                     : "bg-white/5 text-white/20 cursor-not-allowed"
                 }`}
