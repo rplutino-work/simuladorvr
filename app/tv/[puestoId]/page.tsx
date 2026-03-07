@@ -44,19 +44,38 @@ function RacingBackground() {
 
 export default function TVPage() {
   const params = useParams();
-  const puestoId = params?.puestoId as string;
+  const rawPuestoId = params?.puestoId as string;
+  const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [state, setState] = useState<TVState>("idle");
   const [session, setSession] = useState<SessionData>(null);
   const [remainingMs, setRemainingMs] = useState(0);
   const [puestoName, setPuestoName] = useState("");
 
+  useEffect(() => {
+    const isNumeric = /^\d+$/.test(rawPuestoId);
+    if (!isNumeric) {
+      setResolvedId(rawPuestoId);
+      return;
+    }
+    fetch("/api/puestos")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string; active: boolean }[]) => {
+        const activos = data.filter((p) => p.active);
+        const idx = parseInt(rawPuestoId, 10) - 1;
+        if (activos[idx]) setResolvedId(activos[idx].id);
+        else if (activos[0]) setResolvedId(activos[0].id);
+      })
+      .catch(() => {});
+  }, [rawPuestoId]);
+
   const poll = useCallback(async () => {
+    if (!resolvedId) return;
     try {
-      const res = await fetch(`/api/tablet/${puestoId}/status`);
+      const res = await fetch(`/api/tablet/${resolvedId}/status`);
       const data = await res.json();
       if (data.session) {
         setSession(data.session);
-        setPuestoName(data.session.puestoName || `Puesto ${puestoId}`);
+        setPuestoName(data.session.puestoName || `Puesto ${rawPuestoId}`);
         const ms = Math.max(0, new Date(data.session.endTime).getTime() - Date.now());
         setRemainingMs(ms);
         if (ms <= 0) {
@@ -81,13 +100,14 @@ export default function TVPage() {
     } catch {
       // Network error, keep current state
     }
-  }, [puestoId, state]);
+  }, [resolvedId, state]);
 
   useEffect(() => {
+    if (!resolvedId) return;
     poll();
     const interval = setInterval(poll, POLL_MS);
     return () => clearInterval(interval);
-  }, [poll]);
+  }, [poll, resolvedId]);
 
   useEffect(() => {
     if (state !== "active" && state !== "warning") return;
@@ -127,7 +147,7 @@ export default function TVPage() {
               SIMULADOR<span className="text-[#E50014]">VR</span>
             </motion.h1>
             <p className="font-condensed text-2xl text-white/30 tracking-[0.3em] mt-6 uppercase">
-              {puestoName || `Puesto ${puestoId}`} — Disponible
+              {puestoName || `Puesto ${rawPuestoId}`} — Disponible
             </p>
             <motion.div
               className="mt-12 w-3 h-3 rounded-full bg-green-500"
@@ -147,7 +167,7 @@ export default function TVPage() {
           >
             <div className="flex flex-col items-center">
               <p className="font-condensed text-xl text-white/40 tracking-[0.3em] uppercase mb-4">
-                {puestoName || `Puesto ${puestoId}`}
+                {puestoName || `Puesto ${rawPuestoId}`}
               </p>
 
               <motion.div
