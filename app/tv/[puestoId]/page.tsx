@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -11,20 +11,10 @@ type SessionData = {
   remainingMs: number;
 } | null;
 
-type TVState = "idle" | "active" | "warning" | "finished";
+type TVState = "idle" | "redirecting" | "game" | "finished";
 
-const WARNING_MS = 5 * 60 * 1000;
 const POLL_MS = 3000;
-
-function fmtCountdown(ms: number): string {
-  if (ms <= 0) return "00:00";
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+const REDIRECT_DELAY_MS = 3000;
 
 function RacingBackground() {
   return (
@@ -42,15 +32,31 @@ function RacingBackground() {
   );
 }
 
+function tryNativeBridge(method: string) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bridge = (window as any).NativeBridge;
+    if (bridge && typeof bridge[method] === "function") {
+      bridge[method]();
+      return true;
+    }
+  } catch {
+    // Not in native context
+  }
+  return false;
+}
+
 export default function TVPage() {
   const params = useParams();
   const rawPuestoId = params?.puestoId as string;
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [state, setState] = useState<TVState>("idle");
   const [session, setSession] = useState<SessionData>(null);
-  const [remainingMs, setRemainingMs] = useState(0);
   const [puestoName, setPuestoName] = useState("");
+  const prevSessionRef = useRef<string | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Resolve numeric puesto IDs (1, 2, 3) to real DB IDs
   useEffect(() => {
     const isNumeric = /^\d+$/.test(rawPuestoId);
     if (!isNumeric) {
@@ -76,17 +82,25 @@ export default function TVPage() {
       if (data.session) {
         setSession(data.session);
         setPuestoName(data.session.puestoName || `Puesto ${rawPuestoId}`);
-        const ms = Math.max(0, new Date(data.session.endTime).getTime() - Date.now());
-        setRemainingMs(ms);
-        if (ms <= 0) {
-          setState("finished");
-        } else if (ms <= WARNING_MS) {
-          setState("warning");
-        } else {
-          setState("active");
+
+        // Session just started (wasn't active before)
+        if (!prevSessionRef.current || prevSessionRef.current !== data.session.bookingId) {
+          prevSessionRef.current = data.session.bookingId;
+          setState("redirecting");
+
+          // After delay, switch to HDMI 1
+          if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+          redirectTimerRef.current = setTimeout(() => {
+            tryNativeBridge("switchToHdmi1");
+            setState("game");
+          }, REDIRECT_DELAY_MS);
         }
       } else {
-        if (state === "active" || state === "warning") {
+        // No active session
+        if (prevSessionRef.current) {
+          // Session just ended — switch back to app
+          prevSessionRef.current = null;
+          tryNativeBridge("switchToApp");
           setState("finished");
           setTimeout(() => {
             setState("idle");
@@ -100,7 +114,7 @@ export default function TVPage() {
     } catch {
       // Network error, keep current state
     }
-  }, [resolvedId, state]);
+  }, [resolvedId, rawPuestoId, state]);
 
   useEffect(() => {
     if (!resolvedId) return;
@@ -110,27 +124,19 @@ export default function TVPage() {
   }, [poll, resolvedId]);
 
   useEffect(() => {
-    if (state !== "active" && state !== "warning") return;
-    const timer = setInterval(() => {
-      setRemainingMs((prev) => {
-        const next = Math.max(0, prev - 1000);
-        if (next <= 0) setState("finished");
-        else if (next <= WARNING_MS && state !== "warning") setState("warning");
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [state]);
-
-  const progress = session ? Math.max(0, remainingMs / (session.duration * 60 * 1000)) : 0;
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   return (
     <div className={`fixed inset-0 overflow-hidden select-none transition-colors duration-1000 ${
-      state === "warning" ? "bg-[#1a0000]" : state === "finished" ? "bg-[#001a00]" : "bg-[#0D0008]"
+      state === "finished" ? "bg-[#001a00]" : "bg-[#0D0008]"
     }`}>
       <RacingBackground />
 
       <AnimatePresence mode="wait">
+        {/* IDLE — Logo pulsando, disponible */}
         {state === "idle" && (
           <motion.div
             key="idle"
@@ -157,64 +163,79 @@ export default function TVPage() {
           </motion.div>
         )}
 
-        {(state === "active" || state === "warning") && session && (
+        {/* REDIRECTING — Mensaje antes de cambiar a HDMI */}
+        {state === "redirecting" && session && (
           <motion.div
-            key="active"
-            className="absolute inset-0 flex items-center justify-center"
+            key="redirecting"
+            className="absolute inset-0 flex flex-col items-center justify-center"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
           >
-            <div className="flex flex-col items-center">
-              <p className="font-condensed text-xl text-white/40 tracking-[0.3em] uppercase mb-4">
-                {puestoName || `Puesto ${rawPuestoId}`}
-              </p>
-
+            <div className="flex flex-col items-center text-center px-8">
               <motion.div
-                className={`font-racing leading-none ${
-                  state === "warning" ? "text-[#E50014]" : "text-white"
-                }`}
-                style={{ fontSize: "clamp(6rem, 18vw, 16rem)" }}
-                animate={state === "warning" ? { scale: [1, 1.03, 1] } : {}}
-                transition={{ duration: 1, repeat: Infinity }}
-              >
-                {fmtCountdown(remainingMs)}
-              </motion.div>
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="mb-8 h-16 w-16 rounded-full border-4 border-white/10 border-t-[#E50014]"
+              />
 
-              <p className="font-condensed text-2xl text-white/50 tracking-wider mt-6 uppercase">
-                {session.customerName}
-              </p>
-
-              {/* Progress bar */}
-              <div className="w-[60vw] max-w-2xl h-2 bg-white/10 rounded-full mt-10 overflow-hidden">
-                <motion.div
-                  className={`h-full rounded-full ${
-                    state === "warning"
-                      ? "bg-gradient-to-r from-[#E50014] to-yellow-500"
-                      : "bg-gradient-to-r from-[#E50014] to-white/50"
-                  }`}
-                  style={{ width: `${progress * 100}%` }}
-                  transition={{ duration: 0.5 }}
-                />
-              </div>
-
-              <p className="font-condensed text-sm text-white/25 mt-4 tracking-widest">
-                SESIÓN DE {session.duration} MINUTOS
-              </p>
-
-              {state === "warning" && (
+              {session.customerName && (
                 <motion.p
-                  className="font-condensed text-xl text-[#E50014] mt-6 tracking-wider"
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1, repeat: Infinity }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="font-racing text-3xl text-[#E50014] tracking-wider mb-6"
                 >
-                  SESIÓN POR FINALIZAR
+                  {session.customerName.toUpperCase()}
                 </motion.p>
               )}
+
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="font-racing text-4xl md:text-6xl text-white tracking-wider mb-4"
+              >
+                PREPARANDO TU SESIÓN
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="font-condensed text-xl text-white/40 tracking-[0.2em] uppercase"
+              >
+                Te redirigiremos al juego en breve...
+              </motion.p>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="font-condensed text-lg text-white/25 tracking-wider mt-4"
+              >
+                Sesión de {session.duration} minutos
+              </motion.p>
             </div>
           </motion.div>
         )}
 
+        {/* GAME — Pantalla oscura mientras está en HDMI (puede que no se vea) */}
+        {state === "game" && (
+          <motion.div
+            key="game"
+            className="absolute inset-0 bg-black flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <p className="font-condensed text-sm text-white/10 tracking-widest uppercase">
+              Sesión en curso — {puestoName}
+            </p>
+          </motion.div>
+        )}
+
+        {/* FINISHED — Sesión finalizada */}
         {state === "finished" && (
           <motion.div
             key="finished"

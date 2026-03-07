@@ -260,11 +260,14 @@ export default function TabletPage() {
         setState("error");
         return;
       }
+      const endTime = data.endTime;
+      const duration = data.duration ?? 30;
       setSession(data);
-      startCountdown(data.endTime, data.duration);
-      setTotalMs(data.duration * 60 * 1000);
+      setTotalMs(duration * 60 * 1000);
+      startCountdown(endTime, duration);
       setState("active");
-    } catch {
+    } catch (err) {
+      console.error("[tablet] activate error:", err);
       setErrorMsg("Error de conexión. Verificá el Wi-Fi.");
       setState("error");
     }
