@@ -12,7 +12,7 @@ type SessionData = {
   remainingMs: number;
 } | null;
 
-type TVState = "idle" | "redirecting" | "game" | "finished";
+type TVState = "off" | "idle" | "redirecting" | "game" | "finished";
 
 const POLL_MS = 3000;
 const REDIRECT_DELAY_MS = 3000;
@@ -78,6 +78,7 @@ export default function TVPage() {
   const [puestoName, setPuestoName] = useState("");
   const prevSessionRef = useRef<string | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const screenStateRef = useRef<boolean>(true);
 
   // Resolve numeric puesto IDs (1, 2, 3) to real DB IDs
   useEffect(() => {
@@ -102,16 +103,38 @@ export default function TVPage() {
     try {
       const res = await fetch(`/api/tablet/${resolvedId}/status`);
       const data = await res.json();
+
+      if (data.puestoName) setPuestoName(data.puestoName);
+
+      // Screen power: off if outside business hours or puesto disabled
+      const shouldBeOn = data.screenOn !== false;
+
+      if (!shouldBeOn && screenStateRef.current) {
+        screenStateRef.current = false;
+        tryNativeBridge("screenOff");
+        setState("off");
+        setSession(null);
+        prevSessionRef.current = null;
+        return;
+      }
+
+      if (shouldBeOn && !screenStateRef.current) {
+        screenStateRef.current = true;
+        tryNativeBridge("screenOn");
+        setState("idle");
+      }
+
+      if (!shouldBeOn) return;
+
+      // Normal session logic
       if (data.session) {
         setSession(data.session);
-        setPuestoName(data.session.puestoName || `Puesto ${rawPuestoId}`);
 
-        // Session just started (wasn't active before)
         if (!prevSessionRef.current || prevSessionRef.current !== data.session.bookingId) {
           prevSessionRef.current = data.session.bookingId;
+          tryNativeBridge("screenOn");
           setState("redirecting");
 
-          // After delay, switch to HDMI 1
           if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
           redirectTimerRef.current = setTimeout(() => {
             tryNativeBridge("switchToHdmi1");
@@ -119,9 +142,7 @@ export default function TVPage() {
           }, REDIRECT_DELAY_MS);
         }
       } else {
-        // No active session
         if (prevSessionRef.current) {
-          // Session just ended — switch back to app
           prevSessionRef.current = null;
           tryNativeBridge("switchToApp");
           setState("finished");
@@ -137,7 +158,7 @@ export default function TVPage() {
     } catch {
       // Network error, keep current state
     }
-  }, [resolvedId, rawPuestoId, state]);
+  }, [resolvedId, state]);
 
   useEffect(() => {
     if (!resolvedId) return;
@@ -157,6 +178,17 @@ export default function TVPage() {
       <RacingLines />
 
       <AnimatePresence mode="wait">
+        {/* OFF — Fuera de horario o puesto desactivado */}
+        {state === "off" && (
+          <motion.div
+            key="off"
+            className="absolute inset-0 bg-black"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        )}
+
         {/* IDLE — Logo + Disponible (mismo estilo tablet) */}
         {state === "idle" && (
           <motion.div

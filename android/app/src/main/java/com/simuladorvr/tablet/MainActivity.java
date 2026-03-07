@@ -46,13 +46,14 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * JS bridge: window.NativeBridge.switchToHdmi1() / switchToApp()
+     * JS bridge: window.NativeBridge.*
+     * - switchToHdmi1() / switchToApp() — HDMI input control
+     * - screenOff() / screenOn() — screen power control via brightness
      */
     public class HdmiBridge {
         @JavascriptInterface
         public void switchToHdmi1() {
             try {
-                // KEYCODE_TV_INPUT_HDMI_1 = 243
                 Runtime.getRuntime().exec(new String[]{"input", "keyevent", "243"});
             } catch (Exception e) {
                 e.printStackTrace();
@@ -62,9 +63,7 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void switchToApp() {
             try {
-                // KEYCODE_HOME brings back to Android TV launcher / app
                 Runtime.getRuntime().exec(new String[]{"input", "keyevent", "3"});
-                // Then re-launch our activity
                 runOnUiThread(() -> {
                     try {
                         android.content.Intent intent = new android.content.Intent(MainActivity.this, MainActivity.class);
@@ -77,6 +76,32 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        @JavascriptInterface
+        public void screenOff() {
+            runOnUiThread(() -> {
+                try {
+                    WindowManager.LayoutParams lp = getWindow().getAttributes();
+                    lp.screenBrightness = 0.0f;
+                    getWindow().setAttributes(lp);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void screenOn() {
+            runOnUiThread(() -> {
+                try {
+                    WindowManager.LayoutParams lp = getWindow().getAttributes();
+                    lp.screenBrightness = -1.0f; // system default
+                    getWindow().setAttributes(lp);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
         }
     }
 }
