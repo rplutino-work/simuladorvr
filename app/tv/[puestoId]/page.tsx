@@ -54,12 +54,12 @@ function RacingLines() {
   );
 }
 
-function tryNativeBridge(method: string) {
+function tryNativeBridge(method: string, ...args: unknown[]) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bridge = (window as any).NativeBridge;
     if (bridge && typeof bridge[method] === "function") {
-      bridge[method]();
+      bridge[method](...args);
       return true;
     }
   } catch {
@@ -136,7 +136,13 @@ export default function TVPage() {
           setState("redirecting");
 
           if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+          const sessionEndTime = data.session.endTime;
           redirectTimerRef.current = setTimeout(() => {
+            // Recalcular el tiempo restante en el momento real del switch,
+            // para que la alarma nativa de Android dispare justo al final del turno
+            // aunque el WebView se congele mientras está en HDMI.
+            const msLeft = Math.max(0, new Date(sessionEndTime).getTime() - Date.now());
+            tryNativeBridge("scheduleReturn", msLeft);
             tryNativeBridge("switchToHdmi1");
             setState("game");
           }, REDIRECT_DELAY_MS);
@@ -144,6 +150,7 @@ export default function TVPage() {
       } else {
         if (prevSessionRef.current) {
           prevSessionRef.current = null;
+          tryNativeBridge("cancelScheduledReturn");
           tryNativeBridge("switchToApp");
           setState("finished");
           setTimeout(() => {
