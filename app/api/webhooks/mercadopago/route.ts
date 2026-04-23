@@ -46,6 +46,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing booking reference" }, { status: 400 });
     }
 
+    // ── Direct tablet purchase: "direct-{bookingId}" ──────────────────────
+    // The customer paid at the tablet without a pre-existing reservation.
+    // Activate the session immediately (no code, no email).
+    if (externalRef.startsWith("direct-")) {
+      const bookingId = externalRef.slice("direct-".length);
+      if (!bookingId) {
+        return NextResponse.json({ error: "Invalid direct reference" }, { status: 400 });
+      }
+
+      const directBooking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+      });
+      if (!directBooking) {
+        return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      }
+      if (directBooking.status === "ACTIVE" || directBooking.status === "FINISHED") {
+        return NextResponse.json({ ok: true });
+      }
+      if (directBooking.status === "CANCELLED" || directBooking.status === "EXPIRED") {
+        // Customer cancelled in the tablet but the payment went through anyway
+        // (edge case). We do NOT auto-activate — leave it for manual handling.
+        return NextResponse.json({ ok: true, wasCancelled: true });
+      }
+
+      // Recalculate times from this moment so the customer gets the full duration
+      // they paid for, even if the webhook arrived seconds/minutes after payment.
+      const now = new Date();
+      const newEnd = new Date(now.getTime() + directBooking.duration * 60 * 1000);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: {
+            status: "ACTIVE",
+            startTime: now,
+            endTime: newEnd,
+            paymentId: mpPaymentId,
+          },
+        });
+        await tx.payment.upsert({
+          where: { bookingId },
+          create: {
+            bookingId,
+            mpPaymentId,
+            amount: mpPayment.transaction_amount
+              ? Math.round(mpPayment.transaction_amount * 100)
+              : directBooking.price,
+            status: "approved",
+          },
+          update: { status: "approved" },
+        });
+      });
+
+      return NextResponse.json({ ok: true });
+    }
+
     // ── Extension payment: "ext-{bookingId}-{additionalMinutes}" ──────────
     if (externalRef.startsWith("ext-")) {
       const parts = externalRef.split("-");

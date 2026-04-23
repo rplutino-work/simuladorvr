@@ -10,6 +10,11 @@ import { useAutoReload } from "@/lib/use-auto-reload";
 
 type State =
   | "screensaver"
+  | "choose_duration"    // direct-purchase: pick 30/60/120
+  | "direct_loading"     // creating MP preference
+  | "direct_qr"          // show QR, 1-min countdown
+  | "direct_confirm_cancel" // confirm before cancelling the pending payment
+  | "direct_waiting"     // payment being confirmed
   | "input"
   | "validating"
   | "error"
@@ -29,10 +34,21 @@ type Session = {
   puestoName: string;
 };
 
+type DirectOption = {
+  requested: 30 | 60 | 120;
+  actualMinutes: number;
+  priceCents: number;
+  available: boolean;
+  partial?: boolean;
+  ceilingTime?: string | null;
+  reason?: string;
+};
+
 const EXTEND_OPTIONS = [30, 60, 120] as const;
 const WARNING_MS = 5 * 60 * 1000;   // 5 minutes
 const POLL_INTERVAL_MS = 4000;
 const SCREENSAVER_RETURN_MS = 8000; // after session ends
+const DIRECT_QR_TIMEOUT_MS = 60 * 1000; // 1 min window to pay
 
 // ─── Countdown formatting ───────────────────────────────────────────────────
 function fmtCountdown(ms: number) {
@@ -128,9 +144,17 @@ export default function TabletPage() {
   const [extendUrl, setExtendUrl] = useState("");
   const [extendAmount, setExtendAmount] = useState(0);
   const [extendMinutes, setExtendMinutes] = useState(0);
+  // Direct-purchase flow
+  const [directOptions, setDirectOptions] = useState<DirectOption[]>([]);
+  const [directBookingId, setDirectBookingId] = useState<string | null>(null);
+  const [directUrl, setDirectUrl] = useState("");
+  const [directSelection, setDirectSelection] = useState<DirectOption | null>(null);
+  const [directSecondsLeft, setDirectSecondsLeft] = useState(DIRECT_QR_TIMEOUT_MS / 1000);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const screensaverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const directTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const directPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Countdown tick ──────────────────────────────────────────────────────
   const startCountdown = useCallback((endTimeIso: string, durationMinutes: number) => {
@@ -207,6 +231,8 @@ export default function TabletPage() {
       if (countdownRef.current) clearInterval(countdownRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
       if (screensaverRef.current) clearTimeout(screensaverRef.current);
+      if (directTimerRef.current) clearInterval(directTimerRef.current);
+      if (directPollRef.current) clearInterval(directPollRef.current);
     };
   }, []);
 
@@ -230,10 +256,143 @@ export default function TabletPage() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  function handleScreensaverTap() {
+  function stopDirectTimers() {
+    if (directTimerRef.current) {
+      clearInterval(directTimerRef.current);
+      directTimerRef.current = null;
+    }
+    if (directPollRef.current) {
+      clearInterval(directPollRef.current);
+      directPollRef.current = null;
+    }
+  }
+
+  function handleGoCodeFlow() {
     setCodeInput("");
     setErrorMsg("");
     setState("input");
+  }
+
+  async function handleGoDirectFlow() {
+    setErrorMsg("");
+    setState("choose_duration");
+    try {
+      const res = await fetch(`/api/tablet/${puestoId}/direct-options`);
+      const data = await res.json();
+      setDirectOptions(data.options ?? []);
+    } catch {
+      setDirectOptions([]);
+      setErrorMsg("No se pudieron cargar las opciones. Verificá el Wi-Fi.");
+      setState("error");
+    }
+  }
+
+  async function handleSelectDirectOption(opt: DirectOption) {
+    if (!opt.available) return;
+    setDirectSelection(opt);
+    setState("direct_loading");
+    try {
+      const res = await fetch(`/api/tablet/${puestoId}/direct-purchase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: opt.requested, actualMinutes: opt.actualMinutes }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error ?? "Error al crear el pago");
+        setState("error");
+        return;
+      }
+      const isSandbox = process.env.NEXT_PUBLIC_MERCADOPAGO_SANDBOX === "true";
+      const url = isSandbox ? (data.sandboxInitPoint ?? data.initPoint) : data.initPoint;
+      setDirectUrl(url);
+      setDirectBookingId(data.bookingId);
+      setDirectSecondsLeft(DIRECT_QR_TIMEOUT_MS / 1000);
+      setState("direct_qr");
+
+      // 1-min countdown until auto-cancel
+      directTimerRef.current = setInterval(() => {
+        setDirectSecondsLeft((s) => {
+          if (s <= 1) {
+            handleDirectTimeout();
+            return 0;
+          }
+          return s - 1;
+        });
+      }, 1000);
+
+      // Poll session status — when payment confirmed, webhook activates session
+      directPollRef.current = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/tablet/${puestoId}/status`);
+          const d = await r.json();
+          if (d.session) {
+            stopDirectTimers();
+            setDirectUrl("");
+            setDirectBookingId(null);
+            setDirectSelection(null);
+            setSession(d.session);
+            setTotalMs(d.session.duration * 60 * 1000);
+            startCountdown(d.session.endTime, d.session.duration);
+            setState(d.session.remainingMs <= WARNING_MS ? "warning" : "active");
+          }
+        } catch {
+          // network flap, keep trying
+        }
+      }, 3000);
+    } catch {
+      setErrorMsg("Error de conexión al crear el pago.");
+      setState("error");
+    }
+  }
+
+  async function cancelDirectBooking() {
+    if (!directBookingId) return;
+    try {
+      await fetch("/api/tablet/direct-cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: directBookingId }),
+      });
+    } catch { /* ignore */ }
+  }
+
+  async function handleDirectTimeout() {
+    stopDirectTimers();
+    await cancelDirectBooking();
+    setDirectBookingId(null);
+    setDirectUrl("");
+    setDirectSelection(null);
+    // Return to options so the customer can choose again
+    handleGoDirectFlow();
+  }
+
+  function handleRequestCancelDirect() {
+    setState("direct_confirm_cancel");
+  }
+
+  function handleAbandonCancelDirect() {
+    setState("direct_qr");
+  }
+
+  async function handleConfirmCancelDirect() {
+    stopDirectTimers();
+    await cancelDirectBooking();
+    setDirectBookingId(null);
+    setDirectUrl("");
+    setDirectSelection(null);
+    setState("screensaver");
+  }
+
+  async function handleBackFromChooseDuration() {
+    setDirectOptions([]);
+    setState("screensaver");
+  }
+
+  function handleBackFromInput() {
+    setCodeInput("");
+    setErrorMsg("");
+    setState("screensaver");
   }
 
   async function handleActivate() {
@@ -361,15 +520,14 @@ export default function TabletPage() {
         {state === "screensaver" && (
           <motion.div
             key="screensaver"
-            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer"
+            className="absolute inset-0 flex flex-col items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.6 }}
-            onClick={handleScreensaverTap}
           >
             <RacingLines />
-            <div className="relative z-10 flex flex-col items-center gap-8">
+            <div className="relative z-10 flex flex-col items-center gap-10 px-6">
               {/* Logo */}
               <motion.div
                 animate={{ scale: [1, 1.03, 1] }}
@@ -392,20 +550,248 @@ export default function TabletPage() {
                 {puestoId.replace(/-/g, " ").toUpperCase()}
               </p>
 
-              {/* Touch to start */}
-              <motion.div
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="mt-8 flex flex-col items-center gap-3"
-              >
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-[#E50014]/40 bg-[#E50014]/10">
-                  <span className="text-3xl">👆</span>
-                </div>
-                <p className="font-racing text-2xl tracking-[0.3em] text-white/60 uppercase">
-                  TOCÁ PARA COMENZAR
-                </p>
-              </motion.div>
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 w-full max-w-2xl mt-4">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleGoDirectFlow}
+                  className="flex-1 py-6 rounded-2xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-2xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(229,0,20,0.4)] transition-colors"
+                >
+                  🏁 Jugar ahora
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleGoCodeFlow}
+                  className="flex-1 py-6 rounded-2xl border-2 border-white/30 bg-white/5 hover:bg-white/10 text-white/90 font-racing text-2xl tracking-[0.25em] uppercase transition-colors"
+                >
+                  Ya tengo código
+                </motion.button>
+              </div>
+              <p className="font-condensed text-xs tracking-widest uppercase text-white/30 mt-2 text-center">
+                Pagá con MercadoPago o ingresá el código que recibiste por email
+              </p>
             </div>
+          </motion.div>
+        )}
+
+        {/* ── CHOOSE DURATION (direct flow) ────────────────────────────── */}
+        {state === "choose_duration" && (
+          <motion.div
+            key="choose_duration"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-6"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.35 }}
+          >
+            <RacingLines />
+            <div className="relative z-10 w-full max-w-4xl">
+              <div className="text-center mb-8">
+                <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
+                  ELEGÍ TU SESIÓN
+                </h2>
+                <p className="font-condensed text-sm tracking-widest uppercase text-white/40">
+                  El tiempo empieza cuando se confirma el pago
+                </p>
+              </div>
+
+              {directOptions.length === 0 ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="w-10 h-10 border-4 border-[#E50014] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
+                  {directOptions.map((opt) => {
+                    const priceStr = (opt.priceCents / 100).toLocaleString("es-AR", {
+                      style: "currency",
+                      currency: "ARS",
+                      maximumFractionDigits: 0,
+                    });
+                    const ceilingHm = opt.ceilingTime
+                      ? new Date(opt.ceilingTime).toLocaleTimeString("es-AR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          timeZone: "America/Argentina/Buenos_Aires",
+                        })
+                      : null;
+                    return (
+                      <motion.button
+                        key={opt.requested}
+                        whileTap={opt.available ? { scale: 0.97 } : undefined}
+                        disabled={!opt.available}
+                        onClick={() => handleSelectDirectOption(opt)}
+                        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 py-10 px-6 transition-all ${
+                          opt.available
+                            ? "border-white/15 bg-white/5 hover:border-[#E50014]/70 hover:bg-[#E50014]/10 cursor-pointer"
+                            : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50"
+                        }`}
+                      >
+                        {opt.partial && opt.available && (
+                          <span className="absolute top-3 right-3 text-[10px] tracking-widest font-condensed font-semibold uppercase px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+                            Parcial
+                          </span>
+                        )}
+                        <span className="font-racing text-6xl text-white leading-none">
+                          {opt.available ? opt.actualMinutes : opt.requested}
+                        </span>
+                        <span className="font-condensed text-xs tracking-widest uppercase text-white/50 mt-1">
+                          minutos
+                        </span>
+                        {opt.available ? (
+                          <>
+                            <span className="font-racing text-3xl text-[#E50014] mt-6">
+                              {priceStr}
+                            </span>
+                            {opt.partial && ceilingHm && (
+                              <span className="font-condensed text-[11px] tracking-widest uppercase text-white/40 mt-2">
+                                Hasta las {ceilingHm}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="font-condensed text-xs tracking-widest uppercase text-white/40 mt-6 text-center">
+                            {opt.reason ?? "No disponible"}
+                          </span>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex justify-center">
+                <button
+                  onClick={handleBackFromChooseDuration}
+                  className="py-3 px-8 rounded-xl border border-white/15 text-white/60 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+                >
+                  ← Volver
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── DIRECT LOADING (creating MP preference) ──────────────────── */}
+        {state === "direct_loading" && (
+          <motion.div
+            key="direct_loading"
+            className="absolute inset-0 flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-14 h-14 border-4 border-[#E50014] border-t-transparent rounded-full animate-spin mb-6" />
+            <p className="font-condensed text-sm tracking-widest uppercase text-white/50">
+              Generando link de pago…
+            </p>
+          </motion.div>
+        )}
+
+        {/* ── DIRECT QR (MP payment) ───────────────────────────────────── */}
+        {state === "direct_qr" && directSelection && directUrl && (
+          <motion.div
+            key="direct_qr"
+            className="absolute inset-0 flex flex-col items-center justify-center px-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-full max-w-md text-center">
+              <h2 className="font-racing text-3xl tracking-widest text-white mb-1">
+                ESCANEÁ PARA PAGAR
+              </h2>
+              <p className="font-condensed text-sm tracking-widest uppercase text-white/40 mb-6">
+                {directSelection.actualMinutes} MIN ·{" "}
+                {(directSelection.priceCents / 100).toLocaleString("es-AR", {
+                  style: "currency",
+                  currency: "ARS",
+                  maximumFractionDigits: 0,
+                })}
+              </p>
+
+              <div className="bg-white p-5 rounded-2xl inline-block mb-5 shadow-[0_0_40px_rgba(229,0,20,0.25)]">
+                <QRCode value={directUrl} size={220} />
+              </div>
+
+              <p className="font-condensed text-xs text-white/50 mb-5">
+                Escaneá con la cámara de tu celular y completá el pago en MercadoPago.
+                La sesión arranca automáticamente al confirmarse.
+              </p>
+
+              {/* Countdown */}
+              <div className="flex items-center justify-center gap-2 mb-6">
+                <span className="font-condensed text-xs tracking-widest uppercase text-white/40">
+                  Tenés
+                </span>
+                <span
+                  className={`font-racing text-2xl tracking-wider ${
+                    directSecondsLeft <= 15 ? "text-[#E50014]" : "text-white"
+                  }`}
+                >
+                  0:{String(directSecondsLeft).padStart(2, "0")}
+                </span>
+                <span className="font-condensed text-xs tracking-widest uppercase text-white/40">
+                  para pagar
+                </span>
+              </div>
+
+              <button
+                onClick={handleRequestCancelDirect}
+                className="w-full py-3 rounded-xl border border-white/15 text-white/60 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── DIRECT CONFIRM CANCEL ─────────────────────────────────────── */}
+        {state === "direct_confirm_cancel" && (
+          <motion.div
+            key="direct_confirm_cancel"
+            className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-black/70"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-full max-w-md text-center rounded-2xl border border-white/10 bg-[#15000A] p-8">
+              <h3 className="font-racing text-2xl tracking-widest text-white mb-3">
+                ¿CANCELAR EL PAGO?
+              </h3>
+              <p className="font-condensed text-sm text-white/50 mb-6">
+                Si ya escaneaste el QR y estás a punto de pagar, mejor esperá a que se confirme.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleConfirmCancelDirect}
+                  className="py-3 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing tracking-widest uppercase transition"
+                >
+                  Sí, cancelar
+                </button>
+                <button
+                  onClick={handleAbandonCancelDirect}
+                  className="py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 transition"
+                >
+                  No, volver al QR
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── DIRECT WAITING (confirming payment) ──────────────────────── */}
+        {state === "direct_waiting" && (
+          <motion.div
+            key="direct_waiting"
+            className="absolute inset-0 flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-14 h-14 border-4 border-[#E50014] border-t-transparent rounded-full animate-spin mb-6" />
+            <p className="font-condensed text-sm tracking-widest uppercase text-white/50">
+              Confirmando pago…
+            </p>
           </motion.div>
         )}
 
@@ -419,8 +805,14 @@ export default function TabletPage() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.35 }}
           >
-            {/* Top: Header + Code Display */}
-            <div className="w-full max-w-2xl text-center pt-2">
+            {/* Top: Back button + Header + Code Display */}
+            <div className="w-full max-w-2xl text-center pt-2 relative">
+              <button
+                onClick={handleBackFromInput}
+                className="absolute left-0 top-1 py-2 px-4 rounded-xl border border-white/15 text-white/60 font-condensed text-xs tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+              >
+                ← Volver
+              </button>
               <h2 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-1">
                 INGRESÁ TU CÓDIGO
               </h2>
