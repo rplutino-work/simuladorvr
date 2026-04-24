@@ -111,8 +111,36 @@ export async function GET(
         };
       }
 
-      // Cap the requested tier to the real available minutes
-      const capped = Math.min(tier, maxAvailableMinutes);
+      // If a smaller tier fits completely, never offer this tier as "partial"
+      // — that would create absurd combinations (e.g. "120 min tier capped to
+      // 60 min at $8k" shown alongside "60 min tier at $9k" lets the customer
+      // pay less for the same time via the partial upgrade).
+      const hasSmallerCompleteTier = TIERS.some((t) => {
+        if (t >= tier) return false;
+        const otherPrice = puesto[`price${t}` as "price30" | "price60" | "price120"] ?? 0;
+        return otherPrice > 0 && t <= maxAvailableMinutes;
+      });
+
+      let capped: number;
+      if (tier <= maxAvailableMinutes) {
+        capped = tier; // full tier fits
+      } else if (hasSmallerCompleteTier) {
+        // Smaller complete tier exists — hide this one instead of offering a
+        // partial that undercuts the smaller tier.
+        return {
+          requested: tier,
+          actualMinutes: 0,
+          priceCents: 0,
+          available: false,
+          reason: nextBooking?.startTime
+            ? "Hay una reserva próxima — elegí una opción menor"
+            : "No entra antes del cierre",
+        };
+      } else {
+        // No complete smaller tier — offer this one as partial
+        capped = maxAvailableMinutes;
+      }
+
       // Round down to a multiple of 5 so the displayed time looks clean
       const actualMinutes = roundDownTo(capped, ROUND_STEP_MINUTES);
 
