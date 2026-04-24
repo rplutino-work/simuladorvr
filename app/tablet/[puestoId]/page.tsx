@@ -20,8 +20,10 @@ type State =
   | "error"
   | "active"
   | "warning"        // < 5 min remaining
+  | "confirm_finish" // confirm manual finish during active session
   | "extend_options"
   | "extend_qr"
+  | "extend_confirm_cancel" // confirm before abandoning the extension QR
   | "extend_waiting"
   | "finished";
 
@@ -182,7 +184,12 @@ export default function TabletPage() {
 
   // ── Auto-finish when time runs out ──────────────────────────────────────
   useEffect(() => {
-    if ((state === "active" || state === "warning") && remainingMs === 0) {
+    // Also auto-finish if the customer is staring at the finish-confirmation
+    // modal when their time runs out — otherwise the session would just hang.
+    if (
+      (state === "active" || state === "warning" || state === "confirm_finish") &&
+      remainingMs === 0
+    ) {
       handleAutoFinish();
     }
     if ((state === "active" || state === "warning") && remainingMs <= WARNING_MS && remainingMs > 0) {
@@ -463,7 +470,18 @@ export default function TabletPage() {
     }, SCREENSAVER_RETURN_MS);
   }
 
-  async function handleManualFinish() {
+  // Manual finish needs confirmation — destructive + the customer already paid.
+  function handleRequestFinish() {
+    if (!session) return;
+    setState("confirm_finish");
+  }
+
+  function handleAbandonFinish() {
+    // Return to whichever state matches the remaining time
+    setState(remainingMs <= WARNING_MS ? "warning" : "active");
+  }
+
+  async function handleConfirmFinish() {
     if (!session) return;
     setState("validating");
     try {
@@ -514,6 +532,14 @@ export default function TabletPage() {
 
   function handleExtendWait() {
     setState("extend_waiting");
+  }
+
+  function handleRequestCancelExtend() {
+    setState("extend_confirm_cancel");
+  }
+
+  function handleAbandonCancelExtend() {
+    setState("extend_qr");
   }
 
   function handleCancelExtend() {
@@ -1141,7 +1167,7 @@ export default function TabletPage() {
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.96 }}
-                onClick={handleManualFinish}
+                onClick={handleRequestFinish}
                 className="rounded-2xl border border-white/10 bg-white/5 py-5 font-racing text-lg tracking-widest text-white/50 uppercase hover:bg-white/10 transition"
               >
                 FINALIZAR
@@ -1234,11 +1260,82 @@ export default function TabletPage() {
               </motion.button>
 
               <button
-                onClick={handleCancelExtend}
+                onClick={handleRequestCancelExtend}
                 className="w-full py-3 font-condensed text-sm tracking-widest uppercase text-white/25 hover:text-white/50 transition"
               >
                 CANCELAR
               </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── EXTEND CONFIRM CANCEL ──────────────────────────────────── */}
+        {state === "extend_confirm_cancel" && (
+          <motion.div
+            key="extend-confirm-cancel"
+            className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-black/70"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-full max-w-md text-center rounded-2xl border border-white/10 bg-[#15000A] p-8">
+              <h3 className="font-racing text-2xl tracking-widest text-white mb-3">
+                ¿CANCELAR EL PAGO?
+              </h3>
+              <p className="font-condensed text-sm text-white/50 mb-6">
+                Si ya escaneaste el QR y estás por pagar, mejor esperá a que confirme.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleCancelExtend}
+                  className="py-3 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing tracking-widest uppercase transition"
+                >
+                  Sí, cancelar
+                </button>
+                <button
+                  onClick={handleAbandonCancelExtend}
+                  className="py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 transition"
+                >
+                  No, volver al QR
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── CONFIRM MANUAL FINISH ──────────────────────────────────── */}
+        {state === "confirm_finish" && session && (
+          <motion.div
+            key="confirm_finish"
+            className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-black/70"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-full max-w-md text-center rounded-2xl border border-white/10 bg-[#15000A] p-8">
+              <h3 className="font-racing text-2xl tracking-widest text-white mb-3">
+                ¿FINALIZAR LA SESIÓN?
+              </h3>
+              <p className="font-condensed text-sm text-white/60 mb-2">
+                Quedan <span className="text-white font-semibold">{fmtCountdown(remainingMs)}</span> de juego.
+              </p>
+              <p className="font-condensed text-sm text-white/40 mb-6">
+                Si finalizás ahora, el tiempo restante se pierde y no se reembolsa.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleConfirmFinish}
+                  className="py-3 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing tracking-widest uppercase transition"
+                >
+                  Sí, finalizar
+                </button>
+                <button
+                  onClick={handleAbandonFinish}
+                  className="py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 transition"
+                >
+                  No, seguir jugando
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
