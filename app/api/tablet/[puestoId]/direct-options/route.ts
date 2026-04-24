@@ -58,13 +58,17 @@ export async function GET(
 
     if (!withinSchedule) {
       return NextResponse.json({
-        options: TIERS.map((t) => ({
-          requested: t,
-          actualMinutes: 0,
-          priceCents: 0,
-          available: false,
-          reason: "Fuera de horario",
-        })),
+        options: TIERS.map((t) => {
+          const fp = puesto[`price${t}` as "price30" | "price60" | "price120"] ?? 0;
+          return {
+            requested: t,
+            fullPriceCents: fp,
+            actualMinutes: 0,
+            priceCents: 0,
+            available: false,
+            reason: "Fuera de horario",
+          };
+        }),
       });
     }
 
@@ -103,9 +107,17 @@ export async function GET(
     const options = TIERS.map((tier) => {
       const tierPriceKey = `price${tier}` as "price30" | "price60" | "price120";
       const fullPrice = puesto[tierPriceKey] ?? 0;
+
+      // `fullPriceCents` is ALWAYS returned for every tier, even if the tier
+      // is not currently purchasable — the UI shows it as reference price.
+      const base = {
+        requested: tier,
+        fullPriceCents: fullPrice,
+      };
+
       if (fullPrice <= 0) {
         return {
-          requested: tier,
+          ...base,
           actualMinutes: 0,
           priceCents: 0,
           available: false,
@@ -125,7 +137,7 @@ export async function GET(
       // tier-120 proportional rate" absurdities.
       if (isPartial && gap > MAX_PARTIAL_GAP_MINUTES) {
         return {
-          requested: tier,
+          ...base,
           actualMinutes: 0,
           priceCents: 0,
           available: false,
@@ -137,7 +149,7 @@ export async function GET(
 
       if (actualMinutes < MIN_USABLE_MINUTES) {
         return {
-          requested: tier,
+          ...base,
           actualMinutes: 0,
           priceCents: 0,
           available: false,
@@ -148,12 +160,13 @@ export async function GET(
         };
       }
 
+      // Proportional pricing: (tier price / tier minutes) × actual minutes
       const rawPrice = Math.round(fullPrice * (actualMinutes / tier));
       // Round UP to multiple of $100 so we never undercharge
       const priceCents = roundUpTo(rawPrice, ROUND_STEP_CENTS);
 
       return {
-        requested: tier,
+        ...base,
         actualMinutes,
         priceCents,
         available: true,

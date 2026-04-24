@@ -36,8 +36,9 @@ type Session = {
 
 type DirectOption = {
   requested: 30 | 60 | 120;
-  actualMinutes: number;
-  priceCents: number;
+  fullPriceCents: number;      // Always present — the tier's reference price
+  actualMinutes: number;       // 0 when unavailable
+  priceCents: number;          // 0 when unavailable (pro-rata if partial)
   available: boolean;
   partial?: boolean;
   ceilingTime?: string | null;
@@ -602,11 +603,14 @@ export default function TabletPage() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
                   {directOptions.map((opt) => {
-                    const priceStr = (opt.priceCents / 100).toLocaleString("es-AR", {
-                      style: "currency",
-                      currency: "ARS",
-                      maximumFractionDigits: 0,
-                    });
+                    const fmtPrice = (cents: number) =>
+                      (cents / 100).toLocaleString("es-AR", {
+                        style: "currency",
+                        currency: "ARS",
+                        maximumFractionDigits: 0,
+                      });
+                    const fullPriceStr = fmtPrice(opt.fullPriceCents);
+                    const partialPriceStr = opt.available && opt.partial ? fmtPrice(opt.priceCents) : null;
                     const ceilingHm = opt.ceilingTime
                       ? new Date(opt.ceilingTime).toLocaleTimeString("es-AR", {
                           hour: "2-digit",
@@ -614,6 +618,7 @@ export default function TabletPage() {
                           timeZone: "America/Argentina/Buenos_Aires",
                         })
                       : null;
+
                     return (
                       <motion.button
                         key={opt.requested}
@@ -631,27 +636,42 @@ export default function TabletPage() {
                             Parcial
                           </span>
                         )}
+
+                        {/* Tier header — always shows the tier in minutes + reference full price */}
                         <span className="font-racing text-6xl text-white leading-none">
-                          {opt.available ? opt.actualMinutes : opt.requested}
+                          {opt.requested}
                         </span>
                         <span className="font-condensed text-xs tracking-widest uppercase text-white/50 mt-1">
                           minutos
                         </span>
-                        {opt.available ? (
-                          <>
-                            <span className="font-racing text-3xl text-[#E50014] mt-6">
-                              {priceStr}
+                        <span className="font-racing text-3xl text-[#E50014] mt-6">
+                          {fullPriceStr}
+                        </span>
+
+                        {/* Partial detail — shows only when available AND partial */}
+                        {opt.available && opt.partial && (
+                          <div className="mt-4 pt-4 border-t border-white/10 w-full text-center">
+                            <span className="block font-condensed text-[11px] tracking-widest uppercase text-white/40">
+                              Ahora solo entran
                             </span>
-                            {opt.partial && ceilingHm && (
-                              <span className="font-condensed text-[11px] tracking-widest uppercase text-white/40 mt-2">
+                            <span className="block font-racing text-2xl text-white mt-1">
+                              {opt.actualMinutes} min · {partialPriceStr}
+                            </span>
+                            {ceilingHm && (
+                              <span className="block font-condensed text-[11px] tracking-widest uppercase text-white/40 mt-1">
                                 Hasta las {ceilingHm}
                               </span>
                             )}
-                          </>
-                        ) : (
-                          <span className="font-condensed text-xs tracking-widest uppercase text-white/40 mt-6 text-center">
-                            {opt.reason ?? "No disponible"}
-                          </span>
+                          </div>
+                        )}
+
+                        {/* Unavailable reason */}
+                        {!opt.available && (
+                          <div className="mt-4 pt-4 border-t border-white/10 w-full text-center">
+                            <span className="block font-condensed text-[11px] tracking-widest uppercase text-white/40">
+                              {opt.reason ?? "No disponible"}
+                            </span>
+                          </div>
                         )}
                       </motion.button>
                     );
