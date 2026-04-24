@@ -7,6 +7,8 @@ const AR_TZ_OFFSET_HOURS = 3;
 const MIN_USABLE_MINUTES = 10;
 const ROUND_STEP_MINUTES = 5;
 const ROUND_STEP_CENTS = 10000; // $100 in cents
+const MAX_PARTIAL_GAP_MINUTES = 15; // a tier can be offered as partial only if
+                                    // the gap to the full tier is <= this
 
 function roundDownTo(n: number, step: number) {
   return Math.floor(n / step) * step;
@@ -111,22 +113,17 @@ export async function GET(
         };
       }
 
-      // If a smaller tier fits completely, never offer this tier as "partial"
-      // — that would create absurd combinations (e.g. "120 min tier capped to
-      // 60 min at $8k" shown alongside "60 min tier at $9k" lets the customer
-      // pay less for the same time via the partial upgrade).
-      const hasSmallerCompleteTier = TIERS.some((t) => {
-        if (t >= tier) return false;
-        const otherPrice = puesto[`price${t}` as "price30" | "price60" | "price120"] ?? 0;
-        return otherPrice > 0 && t <= maxAvailableMinutes;
-      });
+      // Cap at available minutes, rounded down to a multiple of 5
+      const capped = Math.min(tier, maxAvailableMinutes);
+      const actualMinutes = roundDownTo(capped, ROUND_STEP_MINUTES);
+      const gap = tier - actualMinutes;
+      const isPartial = gap > 0;
 
-      let capped: number;
-      if (tier <= maxAvailableMinutes) {
-        capped = tier; // full tier fits
-      } else if (hasSmallerCompleteTier) {
-        // Smaller complete tier exists — hide this one instead of offering a
-        // partial that undercuts the smaller tier.
+      // If the tier doesn't fit fully, only offer it as partial when the gap
+      // is small (<=15 min by default). Anything wider falls back to a
+      // smaller tier — this prevents "tier 120 capped to 60 min at the
+      // tier-120 proportional rate" absurdities.
+      if (isPartial && gap > MAX_PARTIAL_GAP_MINUTES) {
         return {
           requested: tier,
           actualMinutes: 0,
@@ -136,13 +133,7 @@ export async function GET(
             ? "Hay una reserva próxima — elegí una opción menor"
             : "No entra antes del cierre",
         };
-      } else {
-        // No complete smaller tier — offer this one as partial
-        capped = maxAvailableMinutes;
       }
-
-      // Round down to a multiple of 5 so the displayed time looks clean
-      const actualMinutes = roundDownTo(capped, ROUND_STEP_MINUTES);
 
       if (actualMinutes < MIN_USABLE_MINUTES) {
         return {
@@ -157,7 +148,6 @@ export async function GET(
         };
       }
 
-      const isPartial = actualMinutes < tier;
       const rawPrice = Math.round(fullPrice * (actualMinutes / tier));
       // Round UP to multiple of $100 so we never undercharge
       const priceCents = roundUpTo(rawPrice, ROUND_STEP_CENTS);
