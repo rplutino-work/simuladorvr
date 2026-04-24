@@ -396,6 +396,24 @@ export default function TabletPage() {
     setState("screensaver");
   }
 
+  function hapticTap() {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(12);
+    }
+  }
+
+  function handleKeyPress(key: string) {
+    if (codeInput.length >= 4) return;
+    hapticTap();
+    setCodeInput((p) => p + key);
+  }
+
+  function handleDeleteKey() {
+    if (codeInput.length === 0) return;
+    hapticTap();
+    setCodeInput((p) => p.slice(0, -1));
+  }
+
   async function handleActivate() {
     const trimmed = codeInput.trim().toUpperCase();
     if (trimmed.length !== 4) {
@@ -863,94 +881,106 @@ export default function TabletPage() {
               ))}
             </div>
 
-            {/* Custom Keyboard */}
-            <div className="w-full max-w-2xl">
-              {/* Row 1: Numbers */}
-              <div className="flex gap-2 justify-center mb-2">
-                {["2", "3", "4", "5", "6", "7", "8", "9"].map((key) => (
-                  <motion.button
-                    key={key}
-                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
-                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
-                  >
-                    {key}
-                  </motion.button>
-                ))}
-              </div>
+            {/* QWERTY keyboard */}
+            <div className="w-full max-w-3xl">
+              {(() => {
+                // Codes exclude 0, 1, I, O to avoid confusion (see lib/code-generator.ts).
+                // Layout: digits 2-9, then QWERTY skipping I and O.
+                const ROW_DIGITS = ["2", "3", "4", "5", "6", "7", "8", "9"];
+                const ROW_QWERTY_TOP = ["Q", "W", "E", "R", "T", "Y", "U", "P"]; // no I, no O
+                const ROW_QWERTY_MID = ["A", "S", "D", "F", "G", "H", "J", "K", "L"];
+                const ROW_QWERTY_BOT = ["Z", "X", "C", "V", "B", "N", "M"];
 
-              {/* Row 2: A-J */}
-              <div className="flex gap-2 justify-center mb-2">
-                {["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"].map((key) => (
-                  <motion.button
-                    key={key}
-                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
-                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
-                  >
-                    {key}
-                  </motion.button>
-                ))}
-              </div>
+                const keyClass =
+                  "h-16 sm:h-20 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl sm:text-3xl text-white active:bg-[#E50014]/30 active:border-[#E50014]/50 transition-colors select-none";
 
-              {/* Row 3: L-X */}
-              <div className="flex gap-2 justify-center mb-2">
-                {["L", "M", "N", "P", "Q", "R", "S", "T", "U", "V"].map((key) => (
-                  <motion.button
-                    key={key}
-                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
-                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
-                  >
-                    {key}
-                  </motion.button>
-                ))}
-              </div>
+                return (
+                  <>
+                    {/* Digits */}
+                    <div className="grid grid-cols-8 gap-2 mb-2">
+                      {ROW_DIGITS.map((key) => (
+                        <motion.button
+                          key={key}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => handleKeyPress(key)}
+                          className={keyClass}
+                        >
+                          {key}
+                        </motion.button>
+                      ))}
+                    </div>
 
-              {/* Row 4: W-Z + Delete + Confirm */}
-              <div className="flex gap-2 justify-center mt-1">
-                {["W", "X", "Y", "Z"].map((key) => (
-                  <motion.button
-                    key={key}
-                    whileTap={{ scale: 0.9, backgroundColor: "rgba(229,0,20,0.3)" }}
-                    onClick={() => codeInput.length < 4 && setCodeInput((p) => p + key)}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl text-white active:bg-[#E50014]/20 transition-colors"
-                  >
-                    {key}
-                  </motion.button>
-                ))}
+                    {/* QWERTY top */}
+                    <div className="grid grid-cols-8 gap-2 mb-2">
+                      {ROW_QWERTY_TOP.map((key) => (
+                        <motion.button
+                          key={key}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => handleKeyPress(key)}
+                          className={keyClass}
+                        >
+                          {key}
+                        </motion.button>
+                      ))}
+                    </div>
 
-                {/* Delete */}
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setCodeInput((p) => p.slice(0, -1))}
-                  className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl border border-white/20 bg-white/10 flex items-center justify-center font-condensed text-base tracking-wider text-white/60 active:bg-red-900/30 transition-colors"
-                >
-                  ← BORRAR
-                </motion.button>
+                    {/* QWERTY mid — 9 keys */}
+                    <div className="grid grid-cols-9 gap-2 mb-2 px-[4%]">
+                      {ROW_QWERTY_MID.map((key) => (
+                        <motion.button
+                          key={key}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => handleKeyPress(key)}
+                          className={keyClass}
+                        >
+                          {key}
+                        </motion.button>
+                      ))}
+                    </div>
 
-                {/* Confirm */}
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleActivate}
-                  disabled={codeInput.length !== 4}
-                  className={`flex-1 h-14 sm:h-16 rounded-xl font-racing text-xl tracking-widest transition-all ${
-                    codeInput.length === 4
-                      ? "bg-[#E50014] text-white shadow-[0_0_24px_rgba(229,0,20,0.4)]"
-                      : "bg-white/5 text-white/15 cursor-not-allowed"
-                  }`}
-                >
-                  INICIAR →
-                </motion.button>
-              </div>
+                    {/* QWERTY bottom + ⌫ */}
+                    <div className="grid grid-cols-9 gap-2 mb-4 px-[4%]">
+                      <div />
+                      {ROW_QWERTY_BOT.map((key) => (
+                        <motion.button
+                          key={key}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => handleKeyPress(key)}
+                          className={keyClass}
+                        >
+                          {key}
+                        </motion.button>
+                      ))}
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={handleDeleteKey}
+                        disabled={codeInput.length === 0}
+                        className={`h-16 sm:h-20 rounded-xl border flex items-center justify-center font-racing text-2xl transition-colors select-none ${
+                          codeInput.length === 0
+                            ? "border-white/5 bg-white/[0.02] text-white/15 cursor-not-allowed"
+                            : "border-white/20 bg-white/10 text-white/70 active:bg-red-900/30 active:border-red-500/50"
+                        }`}
+                      >
+                        ⌫
+                      </motion.button>
+                    </div>
 
-              {/* Back button */}
-              <button
-                onClick={() => { setCodeInput(""); setState("screensaver"); }}
-                className="mt-3 w-full py-2 font-condensed text-xs tracking-widest uppercase text-white/20 hover:text-white/40 transition"
-              >
-                ← VOLVER
-              </button>
+                    {/* Start (confirm) */}
+                    <motion.button
+                      whileTap={codeInput.length === 4 ? { scale: 0.97 } : undefined}
+                      onClick={handleActivate}
+                      disabled={codeInput.length !== 4}
+                      className={`w-full h-16 sm:h-20 rounded-xl font-racing text-2xl tracking-[0.3em] uppercase transition-all ${
+                        codeInput.length === 4
+                          ? "bg-[#E50014] text-white shadow-[0_0_40px_rgba(229,0,20,0.5)] hover:bg-[#ff0020]"
+                          : "bg-white/5 text-white/20 cursor-not-allowed"
+                      }`}
+                    >
+                      Iniciar sesión →
+                    </motion.button>
+                  </>
+                );
+              })()}
             </div>
           </motion.div>
         )}

@@ -79,6 +79,7 @@ export default function TVPage() {
   const prevSessionRef = useRef<string | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenStateRef = useRef<boolean>(true);
+  const shownFinishedForRef = useRef<string | null>(null);
 
   // Resolve numeric puesto IDs (1, 2, 3) to real DB IDs
   useEffect(() => {
@@ -149,7 +150,9 @@ export default function TVPage() {
         }
       } else {
         if (prevSessionRef.current) {
+          const finishedId = prevSessionRef.current;
           prevSessionRef.current = null;
+          shownFinishedForRef.current = finishedId;
           tryNativeBridge("cancelScheduledReturn");
           tryNativeBridge("switchToApp");
           setState("finished");
@@ -157,9 +160,16 @@ export default function TVPage() {
             setState("idle");
             setSession(null);
           }, 5000);
-        } else if (data.recentlyFinished && state !== "finished") {
+        } else if (
+          data.recentlyFinished &&
+          shownFinishedForRef.current !== data.recentlyFinished.bookingId &&
+          state !== "finished"
+        ) {
           // App restarted (cold start from AlarmManager) and the last session
-          // finished within the recently-finished window — show the message.
+          // finished within the recently-finished window — show the message
+          // ONCE. The ref prevents re-entering the branch while the server
+          // keeps reporting the same finished booking for up to 2 minutes.
+          shownFinishedForRef.current = data.recentlyFinished.bookingId;
           tryNativeBridge("switchToApp");
           setState("finished");
           setTimeout(() => {
