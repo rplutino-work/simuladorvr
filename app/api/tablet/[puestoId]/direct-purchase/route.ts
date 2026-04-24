@@ -5,7 +5,7 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 
 const TIERS = [30, 60, 120] as const;
 const MIN_USABLE_MINUTES = 10;
-const ROUND_STEP_CENTS = 10000; // $100 in cents
+const ROUND_STEP_CENTS = 1000; // $10 in cents — keep in sync with direct-options
 
 function roundUpTo(n: number, step: number) {
   return Math.ceil(n / step) * step;

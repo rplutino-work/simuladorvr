@@ -6,7 +6,7 @@ const TIERS = [30, 60, 120] as const;
 const AR_TZ_OFFSET_HOURS = 3;
 const MIN_USABLE_MINUTES = 10;
 const ROUND_STEP_MINUTES = 5;
-const ROUND_STEP_CENTS = 10000; // $100 in cents
+const ROUND_STEP_CENTS = 1000; // $10 in cents — round up so we never undercharge
 const MAX_PARTIAL_GAP_MINUTES = 15; // a tier can be offered as partial only if
                                     // the gap to the full tier is <= this
 

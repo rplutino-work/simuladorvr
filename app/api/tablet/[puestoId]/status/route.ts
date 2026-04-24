@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// A FINISHED session is reported as `recentlyFinished` for this long after
+// it ended, so the TV (whose WebView may have been killed while on HDMI)
+// can still show the "SESIÓN FINALIZADA" message on cold restart.
+const RECENTLY_FINISHED_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+
 /**
  * GET /api/tablet/[puestoId]/status
  *
@@ -34,8 +39,29 @@ export async function GET(
   const screenOn = withinSchedule && puestoActive;
 
   if (!booking) {
+    // No active session — check if the last session for this puesto finished
+    // recently so the TV can show "SESIÓN FINALIZADA" even after a cold restart.
+    const windowStart = new Date(now.getTime() - RECENTLY_FINISHED_WINDOW_MS);
+    const lastFinished = await prisma.booking.findFirst({
+      where: {
+        puestoId,
+        status: "FINISHED",
+        endTime: { gte: windowStart, lte: now },
+      },
+      orderBy: { endTime: "desc" },
+      select: { id: true, customerName: true, duration: true, endTime: true },
+    });
+
     return NextResponse.json({
       session: null,
+      recentlyFinished: lastFinished
+        ? {
+            bookingId: lastFinished.id,
+            customerName: lastFinished.customerName,
+            duration: lastFinished.duration,
+            finishedAt: lastFinished.endTime,
+          }
+        : null,
       screenOn,
       puestoActive,
       withinSchedule,

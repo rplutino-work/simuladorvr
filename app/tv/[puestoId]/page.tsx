@@ -157,6 +157,15 @@ export default function TVPage() {
             setState("idle");
             setSession(null);
           }, 5000);
+        } else if (data.recentlyFinished && state !== "finished") {
+          // App restarted (cold start from AlarmManager) and the last session
+          // finished within the recently-finished window — show the message.
+          tryNativeBridge("switchToApp");
+          setState("finished");
+          setTimeout(() => {
+            setState("idle");
+            setSession(null);
+          }, 5000);
         } else if (state !== "finished") {
           setState("idle");
           setSession(null);
