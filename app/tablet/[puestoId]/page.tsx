@@ -182,6 +182,14 @@ export default function TabletPage() {
     startCountdown(newEndTimeIso, session?.duration ?? 60);
   }, [session?.duration, startCountdown]);
 
+  // ── Auto-submit code as soon as 4 chars are entered ─────────────────────
+  useEffect(() => {
+    if (state === "input" && codeInput.length === 4) {
+      handleActivate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeInput, state]);
+
   // ── Auto-finish when time runs out ──────────────────────────────────────
   useEffect(() => {
     // Also auto-finish if the customer is staring at the finish-confirmation
@@ -863,7 +871,7 @@ export default function TabletPage() {
         {state === "input" && (
           <motion.div
             key="input"
-            className="absolute inset-0 flex flex-col items-center justify-between px-6 py-6"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 py-4 overflow-y-auto"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -886,11 +894,11 @@ export default function TabletPage() {
             </div>
 
             {/* Code display boxes */}
-            <div className="flex gap-4 justify-center">
+            <div className="flex gap-3 justify-center">
               {[0, 1, 2, 3].map((i) => (
                 <motion.div
                   key={i}
-                  className={`w-20 h-24 sm:w-24 sm:h-28 rounded-2xl border-2 flex items-center justify-center transition-all duration-200 ${
+                  className={`w-16 h-20 sm:w-20 sm:h-24 rounded-2xl border-2 flex items-center justify-center transition-all duration-200 ${
                     codeInput.length === i
                       ? "border-[#E50014] bg-[#E50014]/10 shadow-[0_0_20px_rgba(229,0,20,0.3)]"
                       : codeInput[i]
@@ -900,7 +908,7 @@ export default function TabletPage() {
                   animate={codeInput.length === i ? { scale: [1, 1.03, 1] } : {}}
                   transition={{ duration: 1, repeat: Infinity }}
                 >
-                  <span className="font-racing text-5xl sm:text-6xl text-white">
+                  <span className="font-racing text-4xl sm:text-5xl text-white">
                     {codeInput[i] || ""}
                   </span>
                 </motion.div>
@@ -918,7 +926,7 @@ export default function TabletPage() {
                 const ROW_QWERTY_BOT = ["Z", "X", "C", "V", "B", "N", "M"];
 
                 const keyClass =
-                  "h-16 sm:h-20 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl sm:text-3xl text-white active:bg-[#E50014]/30 active:border-[#E50014]/50 transition-colors select-none";
+                  "h-12 sm:h-14 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-xl sm:text-2xl text-white active:bg-[#E50014]/30 active:border-[#E50014]/50 transition-colors select-none";
 
                 return (
                   <>
@@ -981,7 +989,7 @@ export default function TabletPage() {
                         whileTap={{ scale: 0.92 }}
                         onClick={handleDeleteKey}
                         disabled={codeInput.length === 0}
-                        className={`h-16 sm:h-20 rounded-xl border flex items-center justify-center font-racing text-2xl transition-colors select-none ${
+                        className={`h-12 sm:h-14 rounded-xl border flex items-center justify-center font-racing text-xl sm:text-2xl transition-colors select-none ${
                           codeInput.length === 0
                             ? "border-white/5 bg-white/[0.02] text-white/15 cursor-not-allowed"
                             : "border-white/20 bg-white/10 text-white/70 active:bg-red-900/30 active:border-red-500/50"
@@ -991,12 +999,12 @@ export default function TabletPage() {
                       </motion.button>
                     </div>
 
-                    {/* Start (confirm) */}
+                    {/* Start (confirm) — auto-submit also fires when 4 chars are entered, this is a manual fallback */}
                     <motion.button
                       whileTap={codeInput.length === 4 ? { scale: 0.97 } : undefined}
                       onClick={handleActivate}
                       disabled={codeInput.length !== 4}
-                      className={`w-full h-16 sm:h-20 rounded-xl font-racing text-2xl tracking-[0.3em] uppercase transition-all ${
+                      className={`w-full h-14 sm:h-16 rounded-xl font-racing text-xl sm:text-2xl tracking-[0.25em] uppercase transition-all ${
                         codeInput.length === 4
                           ? "bg-[#E50014] text-white shadow-[0_0_40px_rgba(229,0,20,0.5)] hover:bg-[#ff0020]"
                           : "bg-white/5 text-white/20 cursor-not-allowed"
