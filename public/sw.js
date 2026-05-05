@@ -1,5 +1,5 @@
 // SimuladorVR Tablet Service Worker
-const CACHE = "simuladorvr-v1";
+const CACHE = "simuladorvr-v2";
 const SHELL = ["/tablet", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

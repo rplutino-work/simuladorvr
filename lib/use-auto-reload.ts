@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-const CHECK_INTERVAL_MS = 60_000; // check every 60 seconds
+const CHECK_INTERVAL_MS = 20_000; // check every 20 seconds
 
 /**
  * Polls /api/version and reloads the page when a new deploy is detected.
