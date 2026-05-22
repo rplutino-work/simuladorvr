@@ -580,47 +580,47 @@ export default function TabletPage() {
             transition={{ duration: 0.6 }}
           >
             <RacingLines />
-            <div className="relative z-10 flex flex-col items-center gap-10 px-6 w-full">
+            <div className="relative z-10 flex flex-col items-center gap-6 px-6 w-full">
               {/* Logo */}
               <motion.div
                 animate={{ scale: [1, 1.03, 1] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                 className="text-center"
               >
-                <div className="flex items-center justify-center gap-4 mb-4">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
-                    <span className="font-racing text-5xl text-white">V</span>
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
+                    <span className="font-racing text-4xl text-white">V</span>
                   </div>
-                  <h1 className="font-racing text-7xl sm:text-8xl tracking-widest text-white">
+                  <h1 className="font-racing text-6xl sm:text-7xl tracking-widest text-white">
                     SIMULADOR<span className="text-[#E50014]">VR</span>
                   </h1>
                 </div>
-                <div className="mx-auto h-1 w-44 bg-[#E50014] opacity-80" />
+                <div className="mx-auto h-0.5 w-36 bg-[#E50014] opacity-80" />
               </motion.div>
 
               {/* Puesto name */}
-              <p className="font-condensed text-lg tracking-[0.4em] uppercase text-white/50">
+              <p className="font-condensed text-base tracking-[0.4em] uppercase text-white/50">
                 {puestoId.replace(/-/g, " ").toUpperCase()}
               </p>
 
               {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-5 w-full max-w-3xl mt-4">
+              <div className="flex flex-col sm:flex-row gap-4 w-full max-w-3xl mt-2">
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoDirectFlow}
-                  className="flex-1 py-9 rounded-2xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-3xl sm:text-4xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(229,0,20,0.4)] transition-colors"
+                  className="flex-1 py-7 rounded-2xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(229,0,20,0.4)] transition-colors"
                 >
                   🏁 Jugar ahora
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoCodeFlow}
-                  className="flex-1 py-9 rounded-2xl border-2 border-white/30 bg-white/5 hover:bg-white/10 text-white/90 font-racing text-3xl sm:text-4xl tracking-[0.25em] uppercase transition-colors"
+                  className="flex-1 py-7 rounded-2xl border-2 border-white/30 bg-white/5 hover:bg-white/10 text-white/90 font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-colors"
                 >
                   Ya tengo código
                 </motion.button>
               </div>
-              <p className="font-condensed text-base tracking-widest uppercase text-white/40 mt-2 text-center">
+              <p className="font-condensed text-sm tracking-widest uppercase text-white/40 mt-1 text-center">
                 Pagá con MercadoPago o ingresá el código que recibiste por email
               </p>
             </div>
@@ -631,19 +631,19 @@ export default function TabletPage() {
         {state === "choose_duration" && (
           <motion.div
             key="choose_duration"
-            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-6"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.35 }}
           >
             <RacingLines />
-            <div className="relative z-10 w-full max-w-5xl">
-              <div className="text-center mb-10">
-                <h2 className="font-racing text-5xl sm:text-6xl tracking-widest text-white mb-3">
+            <div className="relative z-10 w-full max-w-5xl my-auto">
+              <div className="text-center mb-6">
+                <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
                   ELEGÍ TU SESIÓN
                 </h2>
-                <p className="font-condensed text-lg tracking-widest uppercase text-white/50">
+                <p className="font-condensed text-base tracking-widest uppercase text-white/50">
                   El tiempo empieza cuando se confirma el pago
                 </p>
               </div>
@@ -677,40 +677,40 @@ export default function TabletPage() {
                         whileTap={opt.available ? { scale: 0.97 } : undefined}
                         disabled={!opt.available}
                         onClick={() => handleSelectDirectOption(opt)}
-                        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 py-12 px-6 transition-all ${
+                        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 py-8 px-5 transition-all ${
                           opt.available
                             ? "border-white/15 bg-white/5 hover:border-[#E50014]/70 hover:bg-[#E50014]/10 cursor-pointer"
                             : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50"
                         }`}
                       >
                         {opt.partial && opt.available && (
-                          <span className="absolute top-4 right-4 text-xs tracking-widest font-condensed font-semibold uppercase px-3 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+                          <span className="absolute top-3 right-3 text-[11px] tracking-widest font-condensed font-semibold uppercase px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
                             Parcial
                           </span>
                         )}
 
                         {/* Tier header — always shows the tier in minutes + reference full price */}
-                        <span className="font-racing text-7xl sm:text-8xl text-white leading-none">
+                        <span className="font-racing text-6xl sm:text-7xl text-white leading-none">
                           {opt.requested}
                         </span>
-                        <span className="font-condensed text-base tracking-widest uppercase text-white/60 mt-2">
+                        <span className="font-condensed text-sm tracking-widest uppercase text-white/60 mt-1">
                           minutos
                         </span>
-                        <span className="font-racing text-4xl sm:text-5xl text-[#E50014] mt-8">
+                        <span className="font-racing text-3xl sm:text-4xl text-[#E50014] mt-5">
                           {fullPriceStr}
                         </span>
 
                         {/* Partial detail — shows only when available AND partial */}
                         {opt.available && opt.partial && (
-                          <div className="mt-6 pt-6 border-t border-white/10 w-full text-center">
-                            <span className="block font-condensed text-sm tracking-widest uppercase text-white/50">
+                          <div className="mt-4 pt-4 border-t border-white/10 w-full text-center">
+                            <span className="block font-condensed text-xs tracking-widest uppercase text-white/50">
                               Ahora solo entran
                             </span>
-                            <span className="block font-racing text-3xl text-white mt-2">
+                            <span className="block font-racing text-2xl text-white mt-1">
                               {opt.actualMinutes} min · {partialPriceStr}
                             </span>
                             {ceilingHm && (
-                              <span className="block font-condensed text-sm tracking-widest uppercase text-white/40 mt-2">
+                              <span className="block font-condensed text-xs tracking-widest uppercase text-white/40 mt-1">
                                 Hasta las {ceilingHm}
                               </span>
                             )}
@@ -763,16 +763,16 @@ export default function TabletPage() {
         {state === "direct_qr" && directSelection && directUrl && (
           <motion.div
             key="direct_qr"
-            className="absolute inset-0 flex flex-col items-center justify-center px-8"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-lg text-center">
-              <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
+            <div className="w-full max-w-md text-center my-auto">
+              <h2 className="font-racing text-3xl tracking-widest text-white mb-1">
                 ESCANEÁ PARA PAGAR
               </h2>
-              <p className="font-condensed text-lg tracking-widest uppercase text-white/50 mb-8">
+              <p className="font-condensed text-base tracking-widest uppercase text-white/50 mb-4">
                 {directSelection.actualMinutes} MIN ·{" "}
                 {(directSelection.priceCents / 100).toLocaleString("es-AR", {
                   style: "currency",
@@ -781,35 +781,35 @@ export default function TabletPage() {
                 })}
               </p>
 
-              <div className="bg-white p-6 rounded-2xl inline-block mb-6 shadow-[0_0_40px_rgba(229,0,20,0.25)]">
-                <QRCode value={directUrl} size={280} />
+              <div className="bg-white p-4 rounded-2xl inline-block mb-4 shadow-[0_0_40px_rgba(229,0,20,0.25)]">
+                <QRCode value={directUrl} size={200} />
               </div>
 
-              <p className="font-condensed text-base text-white/60 mb-6">
+              <p className="font-condensed text-sm text-white/60 mb-4 leading-snug">
                 Escaneá con la cámara de tu celular y completá el pago en MercadoPago.
-                La sesión arranca automáticamente al confirmarse.
+                La sesión arranca al confirmarse.
               </p>
 
               {/* Countdown */}
-              <div className="flex items-center justify-center gap-3 mb-8">
-                <span className="font-condensed text-base tracking-widest uppercase text-white/50">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <span className="font-condensed text-sm tracking-widest uppercase text-white/50">
                   Tenés
                 </span>
                 <span
-                  className={`font-racing text-4xl tracking-wider ${
+                  className={`font-racing text-3xl tracking-wider ${
                     directSecondsLeft <= 15 ? "text-[#E50014]" : "text-white"
                   }`}
                 >
                   0:{String(directSecondsLeft).padStart(2, "0")}
                 </span>
-                <span className="font-condensed text-base tracking-widest uppercase text-white/50">
+                <span className="font-condensed text-sm tracking-widest uppercase text-white/50">
                   para pagar
                 </span>
               </div>
 
               <button
                 onClick={handleRequestCancelDirect}
-                className="w-full py-5 rounded-xl border border-white/15 text-white/70 font-condensed text-lg tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+                className="w-full py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-base tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
               >
                 Cancelar
               </button>
@@ -821,7 +821,7 @@ export default function TabletPage() {
         {state === "direct_confirm_cancel" && (
           <motion.div
             key="direct_confirm_cancel"
-            className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-black/70"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-4 bg-black/70 overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1089,7 +1089,7 @@ export default function TabletPage() {
         {(state === "active" || state === "warning") && session && (
           <motion.div
             key="active"
-            className="absolute inset-0 flex flex-col items-center justify-between px-8 py-10"
+            className="absolute inset-0 flex flex-col items-center justify-between px-6 py-6 overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1109,33 +1109,33 @@ export default function TabletPage() {
             {/* Top bar */}
             <div className="w-full flex items-center justify-between">
               <div>
-                <p className="font-condensed text-sm tracking-[0.3em] uppercase text-white/40">
+                <p className="font-condensed text-xs tracking-[0.3em] uppercase text-white/40">
                   SIMULADOR
                 </p>
-                <p className="font-racing text-3xl tracking-widest text-white">
+                <p className="font-racing text-2xl tracking-widest text-white">
                   {session.puestoName}
                 </p>
               </div>
               {session.customerName && (
                 <div className="text-right">
-                  <p className="font-condensed text-sm tracking-[0.3em] uppercase text-white/40">
+                  <p className="font-condensed text-xs tracking-[0.3em] uppercase text-white/40">
                     PILOTO
                   </p>
-                  <p className="font-racing text-3xl tracking-widest text-white">
+                  <p className="font-racing text-2xl tracking-widest text-white">
                     {session.customerName.toUpperCase()}
                   </p>
                 </div>
               )}
               {isWarning && (
-                <div className="flex items-center gap-3 rounded-xl border border-[#E50014]/50 bg-[#E50014]/20 px-5 py-3">
+                <div className="flex items-center gap-2 rounded-xl border border-[#E50014]/50 bg-[#E50014]/20 px-4 py-2">
                   <motion.span
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{ duration: 0.7, repeat: Infinity }}
-                    className="text-3xl"
+                    className="text-2xl"
                   >
                     ⚠️
                   </motion.span>
-                  <span className="font-racing text-lg tracking-widest text-[#E50014]">
+                  <span className="font-racing text-base tracking-widest text-[#E50014]">
                     ¡ÚLTIMOS MINUTOS!
                   </span>
                 </div>
@@ -1144,20 +1144,20 @@ export default function TabletPage() {
 
             {/* Countdown clock */}
             <div className="relative flex items-center justify-center">
-              <div className="relative h-80 w-80 sm:h-96 sm:w-96 flex items-center justify-center">
+              <div className="relative h-64 w-64 sm:h-72 sm:w-72 flex items-center justify-center">
                 <ProgressRing pct={progressPct} warning={isWarning} />
                 <div className="text-center z-10">
                   <motion.p
                     className={`font-racing leading-none ${
                       isWarning ? "text-[#E50014]" : "text-white"
                     }`}
-                    style={{ fontSize: remainingMs >= 3600000 ? "4rem" : "5.5rem" }}
+                    style={{ fontSize: remainingMs >= 3600000 ? "3rem" : "4rem" }}
                     animate={isWarning ? { scale: [1, 1.04, 1] } : {}}
                     transition={isWarning ? { duration: 1, repeat: Infinity } : {}}
                   >
                     {fmtCountdown(remainingMs)}
                   </motion.p>
-                  <p className="font-condensed text-sm tracking-[0.3em] uppercase text-white/40 mt-3">
+                  <p className="font-condensed text-xs tracking-[0.3em] uppercase text-white/40 mt-2">
                     TIEMPO RESTANTE
                   </p>
                 </div>
@@ -1165,18 +1165,18 @@ export default function TabletPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="w-full grid grid-cols-2 gap-5 max-w-2xl">
+            <div className="w-full grid grid-cols-2 gap-4 max-w-xl">
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={() => setState("extend_options")}
-                className="rounded-2xl border border-[#E50014]/40 bg-[#E50014]/10 py-7 font-racing text-2xl sm:text-3xl tracking-widest text-[#E50014] uppercase hover:bg-[#E50014]/20 transition"
+                className="rounded-2xl border border-[#E50014]/40 bg-[#E50014]/10 py-5 font-racing text-xl sm:text-2xl tracking-widest text-[#E50014] uppercase hover:bg-[#E50014]/20 transition"
               >
                 +TIEMPO
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={handleRequestFinish}
-                className="rounded-2xl border border-white/10 bg-white/5 py-7 font-racing text-2xl sm:text-3xl tracking-widest text-white/60 uppercase hover:bg-white/10 transition"
+                className="rounded-2xl border border-white/10 bg-white/5 py-5 font-racing text-xl sm:text-2xl tracking-widest text-white/60 uppercase hover:bg-white/10 transition"
               >
                 FINALIZAR
               </motion.button>
@@ -1281,7 +1281,7 @@ export default function TabletPage() {
         {state === "extend_confirm_cancel" && (
           <motion.div
             key="extend-confirm-cancel"
-            className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-black/70"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-4 bg-black/70 overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1315,7 +1315,7 @@ export default function TabletPage() {
         {state === "confirm_finish" && session && (
           <motion.div
             key="confirm_finish"
-            className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-black/70"
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 py-4 bg-black/70 overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
