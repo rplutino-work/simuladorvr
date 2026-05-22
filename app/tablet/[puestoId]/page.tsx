@@ -580,47 +580,47 @@ export default function TabletPage() {
             transition={{ duration: 0.6 }}
           >
             <RacingLines />
-            <div className="relative z-10 flex flex-col items-center gap-10 px-6">
+            <div className="relative z-10 flex flex-col items-center gap-10 px-6 w-full">
               {/* Logo */}
               <motion.div
                 animate={{ scale: [1, 1.03, 1] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                 className="text-center"
               >
-                <div className="flex items-center justify-center gap-3 mb-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
-                    <span className="font-racing text-3xl text-white">V</span>
+                <div className="flex items-center justify-center gap-4 mb-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
+                    <span className="font-racing text-5xl text-white">V</span>
                   </div>
-                  <h1 className="font-racing text-5xl sm:text-7xl tracking-widest text-white">
+                  <h1 className="font-racing text-7xl sm:text-8xl tracking-widest text-white">
                     SIMULADOR<span className="text-[#E50014]">VR</span>
                   </h1>
                 </div>
-                <div className="mx-auto h-0.5 w-32 bg-[#E50014] opacity-80" />
+                <div className="mx-auto h-1 w-44 bg-[#E50014] opacity-80" />
               </motion.div>
 
               {/* Puesto name */}
-              <p className="font-condensed text-sm tracking-[0.4em] uppercase text-white/40">
+              <p className="font-condensed text-lg tracking-[0.4em] uppercase text-white/50">
                 {puestoId.replace(/-/g, " ").toUpperCase()}
               </p>
 
               {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 w-full max-w-2xl mt-4">
+              <div className="flex flex-col sm:flex-row gap-5 w-full max-w-3xl mt-4">
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoDirectFlow}
-                  className="flex-1 py-6 rounded-2xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-2xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(229,0,20,0.4)] transition-colors"
+                  className="flex-1 py-9 rounded-2xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-3xl sm:text-4xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(229,0,20,0.4)] transition-colors"
                 >
                   🏁 Jugar ahora
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoCodeFlow}
-                  className="flex-1 py-6 rounded-2xl border-2 border-white/30 bg-white/5 hover:bg-white/10 text-white/90 font-racing text-2xl tracking-[0.25em] uppercase transition-colors"
+                  className="flex-1 py-9 rounded-2xl border-2 border-white/30 bg-white/5 hover:bg-white/10 text-white/90 font-racing text-3xl sm:text-4xl tracking-[0.25em] uppercase transition-colors"
                 >
                   Ya tengo código
                 </motion.button>
               </div>
-              <p className="font-condensed text-xs tracking-widest uppercase text-white/30 mt-2 text-center">
+              <p className="font-condensed text-base tracking-widest uppercase text-white/40 mt-2 text-center">
                 Pagá con MercadoPago o ingresá el código que recibiste por email
               </p>
             </div>
@@ -638,12 +638,12 @@ export default function TabletPage() {
             transition={{ duration: 0.35 }}
           >
             <RacingLines />
-            <div className="relative z-10 w-full max-w-4xl">
-              <div className="text-center mb-8">
-                <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
+            <div className="relative z-10 w-full max-w-5xl">
+              <div className="text-center mb-10">
+                <h2 className="font-racing text-5xl sm:text-6xl tracking-widest text-white mb-3">
                   ELEGÍ TU SESIÓN
                 </h2>
-                <p className="font-condensed text-sm tracking-widest uppercase text-white/40">
+                <p className="font-condensed text-lg tracking-widest uppercase text-white/50">
                   El tiempo empieza cuando se confirma el pago
                 </p>
               </div>
@@ -677,40 +677,40 @@ export default function TabletPage() {
                         whileTap={opt.available ? { scale: 0.97 } : undefined}
                         disabled={!opt.available}
                         onClick={() => handleSelectDirectOption(opt)}
-                        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 py-10 px-6 transition-all ${
+                        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 py-12 px-6 transition-all ${
                           opt.available
                             ? "border-white/15 bg-white/5 hover:border-[#E50014]/70 hover:bg-[#E50014]/10 cursor-pointer"
                             : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50"
                         }`}
                       >
                         {opt.partial && opt.available && (
-                          <span className="absolute top-3 right-3 text-[10px] tracking-widest font-condensed font-semibold uppercase px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+                          <span className="absolute top-4 right-4 text-xs tracking-widest font-condensed font-semibold uppercase px-3 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
                             Parcial
                           </span>
                         )}
 
                         {/* Tier header — always shows the tier in minutes + reference full price */}
-                        <span className="font-racing text-6xl text-white leading-none">
+                        <span className="font-racing text-7xl sm:text-8xl text-white leading-none">
                           {opt.requested}
                         </span>
-                        <span className="font-condensed text-xs tracking-widest uppercase text-white/50 mt-1">
+                        <span className="font-condensed text-base tracking-widest uppercase text-white/60 mt-2">
                           minutos
                         </span>
-                        <span className="font-racing text-3xl text-[#E50014] mt-6">
+                        <span className="font-racing text-4xl sm:text-5xl text-[#E50014] mt-8">
                           {fullPriceStr}
                         </span>
 
                         {/* Partial detail — shows only when available AND partial */}
                         {opt.available && opt.partial && (
-                          <div className="mt-4 pt-4 border-t border-white/10 w-full text-center">
-                            <span className="block font-condensed text-[11px] tracking-widest uppercase text-white/40">
+                          <div className="mt-6 pt-6 border-t border-white/10 w-full text-center">
+                            <span className="block font-condensed text-sm tracking-widest uppercase text-white/50">
                               Ahora solo entran
                             </span>
-                            <span className="block font-racing text-2xl text-white mt-1">
+                            <span className="block font-racing text-3xl text-white mt-2">
                               {opt.actualMinutes} min · {partialPriceStr}
                             </span>
                             {ceilingHm && (
-                              <span className="block font-condensed text-[11px] tracking-widest uppercase text-white/40 mt-1">
+                              <span className="block font-condensed text-sm tracking-widest uppercase text-white/40 mt-2">
                                 Hasta las {ceilingHm}
                               </span>
                             )}
@@ -719,8 +719,8 @@ export default function TabletPage() {
 
                         {/* Unavailable reason */}
                         {!opt.available && (
-                          <div className="mt-4 pt-4 border-t border-white/10 w-full text-center">
-                            <span className="block font-condensed text-[11px] tracking-widest uppercase text-white/40">
+                          <div className="mt-6 pt-6 border-t border-white/10 w-full text-center">
+                            <span className="block font-condensed text-sm tracking-widest uppercase text-white/40">
                               {opt.reason ?? "No disponible"}
                             </span>
                           </div>
@@ -734,7 +734,7 @@ export default function TabletPage() {
               <div className="flex justify-center">
                 <button
                   onClick={handleBackFromChooseDuration}
-                  className="py-3 px-8 rounded-xl border border-white/15 text-white/60 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+                  className="py-4 px-10 rounded-xl border border-white/15 text-white/70 font-condensed text-base tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
                 >
                   ← Volver
                 </button>
@@ -768,11 +768,11 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-md text-center">
-              <h2 className="font-racing text-3xl tracking-widest text-white mb-1">
+            <div className="w-full max-w-lg text-center">
+              <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
                 ESCANEÁ PARA PAGAR
               </h2>
-              <p className="font-condensed text-sm tracking-widest uppercase text-white/40 mb-6">
+              <p className="font-condensed text-lg tracking-widest uppercase text-white/50 mb-8">
                 {directSelection.actualMinutes} MIN ·{" "}
                 {(directSelection.priceCents / 100).toLocaleString("es-AR", {
                   style: "currency",
@@ -781,35 +781,35 @@ export default function TabletPage() {
                 })}
               </p>
 
-              <div className="bg-white p-5 rounded-2xl inline-block mb-5 shadow-[0_0_40px_rgba(229,0,20,0.25)]">
-                <QRCode value={directUrl} size={220} />
+              <div className="bg-white p-6 rounded-2xl inline-block mb-6 shadow-[0_0_40px_rgba(229,0,20,0.25)]">
+                <QRCode value={directUrl} size={280} />
               </div>
 
-              <p className="font-condensed text-xs text-white/50 mb-5">
+              <p className="font-condensed text-base text-white/60 mb-6">
                 Escaneá con la cámara de tu celular y completá el pago en MercadoPago.
                 La sesión arranca automáticamente al confirmarse.
               </p>
 
               {/* Countdown */}
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <span className="font-condensed text-xs tracking-widest uppercase text-white/40">
+              <div className="flex items-center justify-center gap-3 mb-8">
+                <span className="font-condensed text-base tracking-widest uppercase text-white/50">
                   Tenés
                 </span>
                 <span
-                  className={`font-racing text-2xl tracking-wider ${
+                  className={`font-racing text-4xl tracking-wider ${
                     directSecondsLeft <= 15 ? "text-[#E50014]" : "text-white"
                   }`}
                 >
                   0:{String(directSecondsLeft).padStart(2, "0")}
                 </span>
-                <span className="font-condensed text-xs tracking-widest uppercase text-white/40">
+                <span className="font-condensed text-base tracking-widest uppercase text-white/50">
                   para pagar
                 </span>
               </div>
 
               <button
                 onClick={handleRequestCancelDirect}
-                className="w-full py-3 rounded-xl border border-white/15 text-white/60 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+                className="w-full py-5 rounded-xl border border-white/15 text-white/70 font-condensed text-lg tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
               >
                 Cancelar
               </button>
@@ -826,23 +826,23 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-md text-center rounded-2xl border border-white/10 bg-[#15000A] p-8">
-              <h3 className="font-racing text-2xl tracking-widest text-white mb-3">
+            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#15000A] p-10">
+              <h3 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-4">
                 ¿CANCELAR EL PAGO?
               </h3>
-              <p className="font-condensed text-sm text-white/50 mb-6">
+              <p className="font-condensed text-lg text-white/60 mb-8">
                 Si ya escaneaste el QR y estás a punto de pagar, mejor esperá a que se confirme.
               </p>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 <button
                   onClick={handleConfirmCancelDirect}
-                  className="py-3 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing tracking-widest uppercase transition"
+                  className="py-5 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-xl tracking-widest uppercase transition"
                 >
                   Sí, cancelar
                 </button>
                 <button
                   onClick={handleAbandonCancelDirect}
-                  className="py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 transition"
+                  className="py-5 rounded-xl border border-white/15 text-white/70 font-condensed text-lg tracking-widest uppercase hover:bg-white/5 transition"
                 >
                   No, volver al QR
                 </button>
@@ -878,27 +878,27 @@ export default function TabletPage() {
             transition={{ duration: 0.35 }}
           >
             {/* Top: Back button + Header + Code Display */}
-            <div className="w-full max-w-2xl text-center pt-2 relative">
+            <div className="w-full max-w-3xl text-center pt-2 relative">
               <button
                 onClick={handleBackFromInput}
-                className="absolute left-0 top-1 py-2 px-4 rounded-xl border border-white/15 text-white/60 font-condensed text-xs tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
+                className="absolute left-0 top-1 py-3 px-5 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 hover:text-white transition"
               >
                 ← Volver
               </button>
-              <h2 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-1">
+              <h2 className="font-racing text-4xl sm:text-5xl tracking-widest text-white mb-2">
                 INGRESÁ TU CÓDIGO
               </h2>
-              <p className="font-condensed text-xs tracking-widest uppercase text-white/40">
+              <p className="font-condensed text-base tracking-widest uppercase text-white/50">
                 El código te llegó al email al confirmar el pago
               </p>
             </div>
 
             {/* Code display boxes */}
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-4 justify-center">
               {[0, 1, 2, 3].map((i) => (
                 <motion.div
                   key={i}
-                  className={`w-16 h-20 sm:w-20 sm:h-24 rounded-2xl border-2 flex items-center justify-center transition-all duration-200 ${
+                  className={`w-20 h-24 sm:w-24 sm:h-28 rounded-2xl border-2 flex items-center justify-center transition-all duration-200 ${
                     codeInput.length === i
                       ? "border-[#E50014] bg-[#E50014]/10 shadow-[0_0_20px_rgba(229,0,20,0.3)]"
                       : codeInput[i]
@@ -908,7 +908,7 @@ export default function TabletPage() {
                   animate={codeInput.length === i ? { scale: [1, 1.03, 1] } : {}}
                   transition={{ duration: 1, repeat: Infinity }}
                 >
-                  <span className="font-racing text-4xl sm:text-5xl text-white">
+                  <span className="font-racing text-5xl sm:text-6xl text-white">
                     {codeInput[i] || ""}
                   </span>
                 </motion.div>
@@ -926,7 +926,7 @@ export default function TabletPage() {
                 const ROW_QWERTY_BOT = ["Z", "X", "C", "V", "B", "N", "M"];
 
                 const keyClass =
-                  "h-12 sm:h-14 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-xl sm:text-2xl text-white active:bg-[#E50014]/30 active:border-[#E50014]/50 transition-colors select-none";
+                  "h-14 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl sm:text-3xl text-white active:bg-[#E50014]/30 active:border-[#E50014]/50 transition-colors select-none";
 
                 return (
                   <>
@@ -989,7 +989,7 @@ export default function TabletPage() {
                         whileTap={{ scale: 0.92 }}
                         onClick={handleDeleteKey}
                         disabled={codeInput.length === 0}
-                        className={`h-12 sm:h-14 rounded-xl border flex items-center justify-center font-racing text-xl sm:text-2xl transition-colors select-none ${
+                        className={`h-14 sm:h-16 rounded-xl border flex items-center justify-center font-racing text-2xl sm:text-3xl transition-colors select-none ${
                           codeInput.length === 0
                             ? "border-white/5 bg-white/[0.02] text-white/15 cursor-not-allowed"
                             : "border-white/20 bg-white/10 text-white/70 active:bg-red-900/30 active:border-red-500/50"
@@ -1004,7 +1004,7 @@ export default function TabletPage() {
                       whileTap={codeInput.length === 4 ? { scale: 0.97 } : undefined}
                       onClick={handleActivate}
                       disabled={codeInput.length !== 4}
-                      className={`w-full h-14 sm:h-16 rounded-xl font-racing text-xl sm:text-2xl tracking-[0.25em] uppercase transition-all ${
+                      className={`w-full h-16 sm:h-20 rounded-xl font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-all ${
                         codeInput.length === 4
                           ? "bg-[#E50014] text-white shadow-[0_0_40px_rgba(229,0,20,0.5)] hover:bg-[#ff0020]"
                           : "bg-white/5 text-white/20 cursor-not-allowed"
@@ -1109,33 +1109,33 @@ export default function TabletPage() {
             {/* Top bar */}
             <div className="w-full flex items-center justify-between">
               <div>
-                <p className="font-condensed text-xs tracking-[0.3em] uppercase text-white/30">
+                <p className="font-condensed text-sm tracking-[0.3em] uppercase text-white/40">
                   SIMULADOR
                 </p>
-                <p className="font-racing text-xl tracking-widest text-white">
+                <p className="font-racing text-3xl tracking-widest text-white">
                   {session.puestoName}
                 </p>
               </div>
               {session.customerName && (
                 <div className="text-right">
-                  <p className="font-condensed text-xs tracking-[0.3em] uppercase text-white/30">
+                  <p className="font-condensed text-sm tracking-[0.3em] uppercase text-white/40">
                     PILOTO
                   </p>
-                  <p className="font-racing text-xl tracking-widest text-white">
+                  <p className="font-racing text-3xl tracking-widest text-white">
                     {session.customerName.toUpperCase()}
                   </p>
                 </div>
               )}
               {isWarning && (
-                <div className="flex items-center gap-2 rounded-xl border border-[#E50014]/50 bg-[#E50014]/20 px-4 py-2">
+                <div className="flex items-center gap-3 rounded-xl border border-[#E50014]/50 bg-[#E50014]/20 px-5 py-3">
                   <motion.span
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{ duration: 0.7, repeat: Infinity }}
-                    className="text-xl"
+                    className="text-3xl"
                   >
                     ⚠️
                   </motion.span>
-                  <span className="font-racing text-sm tracking-widest text-[#E50014]">
+                  <span className="font-racing text-lg tracking-widest text-[#E50014]">
                     ¡ÚLTIMOS MINUTOS!
                   </span>
                 </div>
@@ -1144,20 +1144,20 @@ export default function TabletPage() {
 
             {/* Countdown clock */}
             <div className="relative flex items-center justify-center">
-              <div className="relative h-72 w-72 flex items-center justify-center">
+              <div className="relative h-80 w-80 sm:h-96 sm:w-96 flex items-center justify-center">
                 <ProgressRing pct={progressPct} warning={isWarning} />
                 <div className="text-center z-10">
                   <motion.p
                     className={`font-racing leading-none ${
                       isWarning ? "text-[#E50014]" : "text-white"
                     }`}
-                    style={{ fontSize: remainingMs >= 3600000 ? "3rem" : "4.5rem" }}
+                    style={{ fontSize: remainingMs >= 3600000 ? "4rem" : "5.5rem" }}
                     animate={isWarning ? { scale: [1, 1.04, 1] } : {}}
                     transition={isWarning ? { duration: 1, repeat: Infinity } : {}}
                   >
                     {fmtCountdown(remainingMs)}
                   </motion.p>
-                  <p className="font-condensed text-xs tracking-[0.3em] uppercase text-white/30 mt-2">
+                  <p className="font-condensed text-sm tracking-[0.3em] uppercase text-white/40 mt-3">
                     TIEMPO RESTANTE
                   </p>
                 </div>
@@ -1165,18 +1165,18 @@ export default function TabletPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="w-full grid grid-cols-2 gap-4 max-w-lg">
+            <div className="w-full grid grid-cols-2 gap-5 max-w-2xl">
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={() => setState("extend_options")}
-                className="rounded-2xl border border-[#E50014]/40 bg-[#E50014]/10 py-5 font-racing text-lg tracking-widest text-[#E50014] uppercase hover:bg-[#E50014]/20 transition"
+                className="rounded-2xl border border-[#E50014]/40 bg-[#E50014]/10 py-7 font-racing text-2xl sm:text-3xl tracking-widest text-[#E50014] uppercase hover:bg-[#E50014]/20 transition"
               >
                 +TIEMPO
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={handleRequestFinish}
-                className="rounded-2xl border border-white/10 bg-white/5 py-5 font-racing text-lg tracking-widest text-white/50 uppercase hover:bg-white/10 transition"
+                className="rounded-2xl border border-white/10 bg-white/5 py-7 font-racing text-2xl sm:text-3xl tracking-widest text-white/60 uppercase hover:bg-white/10 transition"
               >
                 FINALIZAR
               </motion.button>
@@ -1286,23 +1286,23 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-md text-center rounded-2xl border border-white/10 bg-[#15000A] p-8">
-              <h3 className="font-racing text-2xl tracking-widest text-white mb-3">
+            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#15000A] p-10">
+              <h3 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-4">
                 ¿CANCELAR EL PAGO?
               </h3>
-              <p className="font-condensed text-sm text-white/50 mb-6">
+              <p className="font-condensed text-lg text-white/60 mb-8">
                 Si ya escaneaste el QR y estás por pagar, mejor esperá a que confirme.
               </p>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 <button
                   onClick={handleCancelExtend}
-                  className="py-3 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing tracking-widest uppercase transition"
+                  className="py-5 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-xl tracking-widest uppercase transition"
                 >
                   Sí, cancelar
                 </button>
                 <button
                   onClick={handleAbandonCancelExtend}
-                  className="py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 transition"
+                  className="py-5 rounded-xl border border-white/15 text-white/70 font-condensed text-lg tracking-widest uppercase hover:bg-white/5 transition"
                 >
                   No, volver al QR
                 </button>
@@ -1320,26 +1320,26 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-md text-center rounded-2xl border border-white/10 bg-[#15000A] p-8">
-              <h3 className="font-racing text-2xl tracking-widest text-white mb-3">
+            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#15000A] p-10">
+              <h3 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-4">
                 ¿FINALIZAR LA SESIÓN?
               </h3>
-              <p className="font-condensed text-sm text-white/60 mb-2">
-                Quedan <span className="text-white font-semibold">{fmtCountdown(remainingMs)}</span> de juego.
+              <p className="font-condensed text-lg text-white/70 mb-3">
+                Quedan <span className="text-white font-bold">{fmtCountdown(remainingMs)}</span> de juego.
               </p>
-              <p className="font-condensed text-sm text-white/40 mb-6">
+              <p className="font-condensed text-base text-white/50 mb-8">
                 Si finalizás ahora, el tiempo restante se pierde y no se reembolsa.
               </p>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 <button
                   onClick={handleConfirmFinish}
-                  className="py-3 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing tracking-widest uppercase transition"
+                  className="py-5 rounded-xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-xl tracking-widest uppercase transition"
                 >
                   Sí, finalizar
                 </button>
                 <button
                   onClick={handleAbandonFinish}
-                  className="py-3 rounded-xl border border-white/15 text-white/70 font-condensed text-sm tracking-widest uppercase hover:bg-white/5 transition"
+                  className="py-5 rounded-xl border border-white/15 text-white/70 font-condensed text-lg tracking-widest uppercase hover:bg-white/5 transition"
                 >
                   No, seguir jugando
                 </button>
