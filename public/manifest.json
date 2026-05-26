@@ -1,13 +1,13 @@
 {
-  "name": "SimuladorVR",
-  "short_name": "SimVR",
-  "description": "Panel de sesión para simuladores de racing VR",
+  "name": "Race Room",
+  "short_name": "Race Room",
+  "description": "Panel de sesión para Race Room",
   "start_url": "/tablet/1",
   "scope": "/tablet/",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#0D0008",
-  "theme_color": "#0D0008",
+  "background_color": "#121F45",
+  "theme_color": "#121F45",
   "categories": ["games", "entertainment"],
   "icons": [
     {

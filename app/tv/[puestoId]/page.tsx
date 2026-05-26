@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { useAutoReload } from "@/lib/use-auto-reload";
 
 type SessionData = {
@@ -23,7 +24,7 @@ function RacingLines() {
       {[...Array(6)].map((_, i) => (
         <motion.div
           key={i}
-          className="absolute h-px bg-gradient-to-r from-transparent via-[#E50014] to-transparent opacity-40"
+          className="absolute h-px bg-gradient-to-r from-transparent via-[#CC1E4A] to-transparent opacity-40"
           style={{ top: `${15 + i * 14}%`, left: 0, right: 0 }}
           initial={{ x: "-100%" }}
           animate={{ x: "200%" }}
@@ -200,7 +201,7 @@ export default function TVPage() {
   }, []);
 
   return (
-    <div className="fixed inset-0 overflow-hidden select-none bg-black">
+    <div className="fixed inset-0 overflow-hidden select-none bg-[#121F45]">
       <RacingLines />
 
       <AnimatePresence mode="wait">
@@ -230,18 +231,17 @@ export default function TVPage() {
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               className="text-center"
             >
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
-                  <span className="font-racing text-4xl text-white">V</span>
-                </div>
-                <h1 className="font-racing text-6xl md:text-8xl tracking-widest text-white">
-                  SIMULADOR<span className="text-[#E50014]">VR</span>
-                </h1>
-              </div>
-              <div className="mx-auto h-0.5 w-40 bg-[#E50014] opacity-80" />
+              <Image
+                src="/race-room-logo.png"
+                alt="Race Room"
+                width={1024}
+                height={1536}
+                priority
+                className="h-48 md:h-64 w-auto mx-auto drop-shadow-[0_0_60px_rgba(204,30,74,0.4)]"
+              />
             </motion.div>
 
-            <p className="font-condensed text-xl text-white/40 tracking-[0.4em] mt-8 uppercase">
+            <p className="font-condensed text-xl text-white/50 tracking-[0.4em] mt-10 uppercase">
               {puestoName || `Puesto ${rawPuestoId}`} — Disponible
             </p>
 
@@ -263,7 +263,7 @@ export default function TVPage() {
             exit={{ opacity: 0, scale: 1.05 }}
           >
             <div className="flex flex-col items-center text-center px-8">
-              <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
+              <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-lg bg-[#CC1E4A] shadow-[0_0_40px_rgba(204,30,74,0.6)]">
                 <span className="font-racing text-4xl text-white">V</span>
               </div>
 
@@ -272,7 +272,7 @@ export default function TVPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="font-racing text-3xl text-[#E50014] tracking-wider mb-6"
+                  className="font-racing text-3xl text-[#CC1E4A] tracking-wider mb-6"
                 >
                   BIENVENIDO, {session.customerName.toUpperCase()}
                 </motion.p>
@@ -290,7 +290,7 @@ export default function TVPage() {
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                className="my-6 h-12 w-12 rounded-full border-4 border-white/10 border-t-[#E50014]"
+                className="my-6 h-12 w-12 rounded-full border-4 border-white/10 border-t-[#CC1E4A]"
               />
 
               <motion.p
@@ -358,7 +358,7 @@ export default function TVPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="font-racing text-2xl tracking-widest text-[#E50014] mb-4"
+              className="font-racing text-2xl tracking-widest text-[#CC1E4A] mb-4"
             >
               ¡GRACIAS POR CORRER CON NOSOTROS!
             </motion.p>

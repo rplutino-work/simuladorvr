@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -74,9 +75,9 @@ function StepDot({ n, active, done }: { n: number; active: boolean; done: boolea
     <div
       className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-racing transition-all ${
         done
-          ? "bg-[#E50014] text-white"
+          ? "bg-[#CC1E4A] text-white"
           : active
-          ? "bg-[#E50014] text-white ring-2 ring-[#E50014] ring-offset-2 ring-offset-[#0D0008]"
+          ? "bg-[#CC1E4A] text-white ring-2 ring-[#CC1E4A] ring-offset-2 ring-offset-[#121F45]"
           : "bg-white/10 text-white/30 border border-white/10"
       }`}
     >
@@ -191,9 +192,9 @@ function ReservaContent() {
   const mobilePuesto = puestos.find((p) => p.id === activeMobilePuestoId);
 
   return (
-    <div className="min-h-screen bg-[#0D0008]">
+    <div className="min-h-screen bg-[#121F45]">
       {/* ── Header ────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#080C2E]/95 backdrop-blur-sm shadow-lg">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#121F45]/95 backdrop-blur-sm shadow-lg">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <Link
             href="/"
@@ -202,12 +203,15 @@ function ReservaContent() {
             <ChevronLeft className="h-4 w-4" />
             INICIO
           </Link>
-          <span className="flex items-center gap-2 font-racing tracking-widest text-white text-base">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-[#E50014] text-white font-racing text-xs leading-none">
-              V
-            </span>
-            RESERVAR SESIÓN
-          </span>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/race-room-logo.png"
+              alt="Race Room"
+              width={1024}
+              height={1536}
+              className="h-10 w-auto"
+            />
+          </Link>
           <div className="w-16" />
         </div>
       </header>
@@ -222,9 +226,9 @@ function ReservaContent() {
           className="mb-8 flex items-center gap-2"
         >
           <StepDot n={1} active={false} done={true} />
-          <div className="h-px flex-1 bg-gradient-to-r from-[#E50014]/60 to-white/10" />
+          <div className="h-px flex-1 bg-gradient-to-r from-[#CC1E4A]/60 to-white/10" />
           <StepDot n={2} active={step === 2} done={step > 2} />
-          <div className={`h-px flex-1 transition-all duration-500 ${step > 2 ? "bg-[#E50014]/60" : "bg-white/10"}`} />
+          <div className={`h-px flex-1 transition-all duration-500 ${step > 2 ? "bg-[#CC1E4A]/60" : "bg-white/10"}`} />
           <StepDot n={3} active={step === 3} done={false} />
           <span className="ml-2 text-xs font-condensed tracking-widest uppercase text-white/50">
             {step === 2 ? "ELEGÍ HORARIO" : step === 3 ? "CONFIRMÁ" : ""}
@@ -239,7 +243,7 @@ function ReservaContent() {
           className="mb-4"
         >
           <label className="flex items-center gap-1.5 mb-2 text-xs font-condensed font-semibold tracking-widest uppercase text-white/60">
-            <Calendar className="h-3.5 w-3.5 text-[#E50014]" /> FECHA
+            <Calendar className="h-3.5 w-3.5 text-[#CC1E4A]" /> FECHA
           </label>
           <input
             id="date"
@@ -247,7 +251,7 @@ function ReservaContent() {
             min={minDate}
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="h-12 w-full rounded-xl border border-white/15 bg-[#080C2E] px-4 text-white font-condensed tracking-wide text-sm focus:outline-none focus:ring-2 focus:ring-[#E50014]/50 focus:border-[#E50014]/60 transition [color-scheme:dark] hover:border-white/25"
+            className="h-12 w-full rounded-xl border border-white/15 bg-[#121F45] px-4 text-white font-condensed tracking-wide text-sm focus:outline-none focus:ring-2 focus:ring-[#CC1E4A]/50 focus:border-[#CC1E4A]/60 transition [color-scheme:dark] hover:border-white/25"
           />
         </motion.div>
 
@@ -259,7 +263,7 @@ function ReservaContent() {
           className="mb-6"
         >
           <label className="flex items-center gap-1.5 mb-2 text-xs font-condensed font-semibold tracking-widest uppercase text-white/60">
-            <Clock className="h-3.5 w-3.5 text-[#E50014]" /> DURACIÓN DE LA SESIÓN
+            <Clock className="h-3.5 w-3.5 text-[#CC1E4A]" /> DURACIÓN DE LA SESIÓN
           </label>
           <div className="grid grid-cols-3 gap-3">
             {DURATIONS.map((d, i) => (
@@ -274,8 +278,8 @@ function ReservaContent() {
                 onClick={() => setDuration(d)}
                 className={`relative flex flex-col items-center justify-center py-4 rounded-xl border transition-all duration-200 ${
                   duration === d
-                    ? "border-[#E50014] bg-[#E50014] text-white shadow-[0_0_18px_rgba(229,0,20,0.45)]"
-                    : "border-white/15 bg-[#080C2E] text-white/70 hover:border-[#E50014]/50 hover:bg-[#E50014]/8"
+                    ? "border-[#CC1E4A] bg-[#CC1E4A] text-white shadow-[0_0_18px_rgba(204,30,74,0.45)]"
+                    : "border-white/15 bg-[#121F45] text-white/70 hover:border-[#CC1E4A]/50 hover:bg-[#CC1E4A]/8"
                 }`}
               >
                 <span className={`font-racing text-3xl leading-none ${duration === d ? "text-white" : "text-white/80"}`}>
@@ -287,7 +291,7 @@ function ReservaContent() {
                 {duration === d && (
                   <motion.div
                     layoutId="dur-active"
-                    className="absolute inset-0 rounded-xl ring-2 ring-[#E50014] ring-offset-2 ring-offset-[#0D0008]"
+                    className="absolute inset-0 rounded-xl ring-2 ring-[#CC1E4A] ring-offset-2 ring-offset-[#121F45]"
                   />
                 )}
               </motion.button>
@@ -307,11 +311,11 @@ function ReservaContent() {
           </p>
           <span className="flex gap-3 text-xs font-condensed">
             <span className="flex items-center gap-1.5 text-white/50">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#E50014]/30 border border-[#E50014]/50" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#CC1E4A]/30 border border-[#CC1E4A]/50" />
               LIBRE
             </span>
             <span className="flex items-center gap-1.5 text-white/50">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#E50014]" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#CC1E4A]" />
               ELEGIDO
             </span>
           </span>
@@ -325,8 +329,8 @@ function ReservaContent() {
           className="mb-6"
         >
           {loadingSlots ? (
-            <div className="flex h-40 items-center justify-center rounded-2xl border border-white/10 bg-[#080C2E]">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/10 border-t-[#E50014]" />
+            <div className="flex h-40 items-center justify-center rounded-2xl border border-white/10 bg-[#121F45]">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/10 border-t-[#CC1E4A]" />
             </div>
           ) : !dayData || dayData.puestos.length === 0 ? (
             <div className="rounded-2xl border border-yellow-500/20 bg-yellow-900/20 p-5 text-sm text-yellow-300 font-condensed">
@@ -355,8 +359,8 @@ function ReservaContent() {
                         }}
                         className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition-all ${
                           activeMobilePuestoId === p.id
-                            ? "border-[#E50014] bg-[#E50014] text-white shadow-[0_0_10px_rgba(229,0,20,0.3)]"
-                            : "border-white/10 bg-[#080C2E] text-white/60 hover:border-white/20"
+                            ? "border-[#CC1E4A] bg-[#CC1E4A] text-white shadow-[0_0_10px_rgba(204,30,74,0.3)]"
+                            : "border-white/10 bg-[#121F45] text-white/60 hover:border-white/20"
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
@@ -389,11 +393,11 @@ function ReservaContent() {
                       transition={{ duration: 0.15 }}
                     >
                       {mobilePuestoData.slots.length === 0 ? (
-                        <div className="rounded-2xl border border-white/10 bg-[#080C2E] p-8 text-center text-sm text-white/30 font-condensed tracking-wide">
+                        <div className="rounded-2xl border border-white/10 bg-[#121F45] p-8 text-center text-sm text-white/30 font-condensed tracking-wide">
                           Sin horarios disponibles para este simulador hoy
                         </div>
                       ) : (
-                        <div className="rounded-2xl border border-white/10 bg-[#080C2E] p-3 sm:p-4">
+                        <div className="rounded-2xl border border-white/10 bg-[#121F45] p-3 sm:p-4">
                           {mobilePuesto && (
                             <p className="mb-2 text-xs font-condensed tracking-widest uppercase text-white/25 text-center">
                               {mobilePuesto.name} &mdash; {duration} MIN &mdash;{" "}
@@ -423,9 +427,9 @@ function ReservaContent() {
                                   whileTap={available ? { scale: 0.92 } : {}}
                                   className={`rounded-xl py-2.5 text-sm font-racing tracking-wider transition-all ${
                                     isSelected
-                                      ? "bg-[#E50014] text-white shadow-[0_0_12px_rgba(229,0,20,0.5)] ring-2 ring-[#E50014] ring-offset-1 ring-offset-[#080C2E]"
+                                      ? "bg-[#CC1E4A] text-white shadow-[0_0_12px_rgba(204,30,74,0.5)] ring-2 ring-[#CC1E4A] ring-offset-1 ring-offset-[#121F45]"
                                       : available
-                                      ? "bg-[#E50014]/15 text-[#E50014] border border-[#E50014]/30 hover:bg-[#E50014]/25"
+                                      ? "bg-[#CC1E4A]/15 text-[#CC1E4A] border border-[#CC1E4A]/30 hover:bg-[#CC1E4A]/25"
                                       : "cursor-not-allowed bg-white/5 text-white/20 border border-white/5"
                                   }`}
                                 >
@@ -442,10 +446,10 @@ function ReservaContent() {
               </div>
 
               {/* Desktop: full table grid */}
-              <div className="hidden lg:block overflow-x-auto rounded-2xl border border-white/10 bg-[#080C2E]">
+              <div className="hidden lg:block overflow-x-auto rounded-2xl border border-white/10 bg-[#121F45]">
                 <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 bg-[#0D0008]">
+                    <tr className="border-b border-white/10 bg-[#121F45]">
                       <th className="w-20 p-3 text-left text-xs font-condensed font-semibold uppercase tracking-widest text-white/30">
                         HORA
                       </th>
@@ -459,11 +463,11 @@ function ReservaContent() {
                           >
                             <div className="flex flex-col items-center gap-1">
                               <span className="inline-flex items-center gap-1.5 text-xs font-condensed font-semibold uppercase tracking-widest text-white/70">
-                                <Car className="h-3.5 w-3.5 text-[#E50014]/80 flex-shrink-0" />
+                                <Car className="h-3.5 w-3.5 text-[#CC1E4A]/80 flex-shrink-0" />
                                 {p.name}
                               </span>
                               {tabPrice > 0 && (
-                                <span className="font-racing text-base tracking-wider text-[#E50014]">
+                                <span className="font-racing text-base tracking-wider text-[#CC1E4A]">
                                   ${(tabPrice / 100).toLocaleString("es-AR")}
                                 </span>
                               )}
@@ -506,9 +510,9 @@ function ReservaContent() {
                                 whileTap={available ? { scale: 0.94 } : {}}
                                 className={`h-9 w-full rounded-lg text-xs font-racing tracking-wider transition-all ${
                                   isSelected
-                                    ? "bg-[#E50014] text-white shadow-[0_0_12px_rgba(229,0,20,0.5)] ring-2 ring-[#E50014] ring-offset-1 ring-offset-[#080C2E]"
+                                    ? "bg-[#CC1E4A] text-white shadow-[0_0_12px_rgba(204,30,74,0.5)] ring-2 ring-[#CC1E4A] ring-offset-1 ring-offset-[#121F45]"
                                     : available
-                                    ? "bg-[#E50014]/15 text-[#E50014] border border-[#E50014]/30 hover:bg-[#E50014]/25"
+                                    ? "bg-[#CC1E4A]/15 text-[#CC1E4A] border border-[#CC1E4A]/30 hover:bg-[#CC1E4A]/25"
                                     : "cursor-not-allowed bg-white/5 text-white/20"
                                 }`}
                               >
@@ -535,8 +539,8 @@ function ReservaContent() {
               exit={{ opacity: 0, height: 0 }}
               className="mb-6 overflow-hidden"
             >
-              <div className="flex items-center gap-3 rounded-2xl border border-[#E50014]/40 bg-[#E50014]/10 px-4 py-3.5 shadow-[0_0_20px_rgba(229,0,20,0.1)]">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E50014] flex-shrink-0">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#CC1E4A]/40 bg-[#CC1E4A]/10 px-4 py-3.5 shadow-[0_0_20px_rgba(204,30,74,0.1)]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#CC1E4A] flex-shrink-0">
                   <CheckCircle className="h-5 w-5 text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -553,7 +557,7 @@ function ReservaContent() {
                     setSelectedPuestoId(null);
                     setSelectedStartTime(null);
                   }}
-                  className="text-xs font-condensed tracking-widest uppercase text-[#E50014] hover:text-white transition flex-shrink-0"
+                  className="text-xs font-condensed tracking-widest uppercase text-[#CC1E4A] hover:text-white transition flex-shrink-0"
                 >
                   CAMBIAR
                 </button>
@@ -582,7 +586,7 @@ function ReservaContent() {
             placeholder="tu@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-12 w-full rounded-xl border border-white/15 bg-[#080C2E] px-4 text-white font-condensed tracking-wide text-sm placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#E50014]/50 focus:border-[#E50014]/60 transition hover:border-white/25"
+            className="h-12 w-full rounded-xl border border-white/15 bg-[#121F45] px-4 text-white font-condensed tracking-wide text-sm placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#CC1E4A]/50 focus:border-[#CC1E4A]/60 transition hover:border-white/25"
           />
         </motion.div>
 
@@ -606,7 +610,7 @@ function ReservaContent() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.24 }}
-          className="rounded-2xl border border-white/10 bg-[#080C2E] p-5 shadow-xl"
+          className="rounded-2xl border border-white/10 bg-[#121F45] p-5 shadow-xl"
         >
           <div className="mb-4 flex items-center justify-between">
             <span className="font-condensed text-xs tracking-widest uppercase text-white/55">
@@ -627,7 +631,7 @@ function ReservaContent() {
             className={`w-full h-14 rounded-xl font-racing text-lg tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 ${
               loading || !selectedPuestoId || !selectedStartTime
                 ? "bg-white/5 text-white/20 cursor-not-allowed border border-white/5"
-                : "bg-[#E50014] hover:bg-[#ff1a2b] text-white shadow-[0_0_24px_rgba(229,0,20,0.4)] border border-[#E50014]"
+                : "bg-[#CC1E4A] hover:bg-[#ff1a2b] text-white shadow-[0_0_24px_rgba(204,30,74,0.4)] border border-[#CC1E4A]"
             }`}
             onClick={handleCheckout}
             disabled={loading || !selectedPuestoId || !selectedStartTime}
@@ -667,17 +671,17 @@ function ReservaContent() {
       </div>
 
       {/* ── Cómo funciona ─────────────────────────────────────────────── */}
-      <section className="border-t border-white/10 bg-[#080C2E] mt-12 py-16 px-4">
+      <section className="border-t border-white/10 bg-[#121F45] mt-12 py-16 px-4">
         <div className="container mx-auto max-w-4xl">
           {/* Title */}
           <div className="mb-12 text-center">
-            <p className="font-condensed text-xs tracking-[0.3em] uppercase text-[#E50014] mb-2">
+            <p className="font-condensed text-xs tracking-[0.3em] uppercase text-[#CC1E4A] mb-2">
               PROCESO
             </p>
             <h2 className="font-racing text-4xl md:text-5xl tracking-widest text-white">
               ¿CÓMO FUNCIONA?
             </h2>
-            <div className="mx-auto mt-3 h-0.5 w-16 bg-[#E50014]" />
+            <div className="mx-auto mt-3 h-0.5 w-16 bg-[#CC1E4A]" />
           </div>
 
           {/* Steps grid */}
@@ -689,7 +693,7 @@ function ReservaContent() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ delay: i * 0.07, duration: 0.4 }}
-                className="relative bg-[#080C2E] p-6 hover:bg-[#0D0008] transition-colors group"
+                className="relative bg-[#121F45] p-6 hover:bg-[#121F45] transition-colors group"
               >
                 {/* Step number — large background */}
                 <span className="absolute top-3 right-4 font-racing text-6xl text-white/[0.04] select-none group-hover:text-white/[0.07] transition-colors">
@@ -697,12 +701,12 @@ function ReservaContent() {
                 </span>
 
                 {/* Icon */}
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-[#E50014]/30 bg-[#E50014]/10 text-2xl">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-[#CC1E4A]/30 bg-[#CC1E4A]/10 text-2xl">
                   {step.icon}
                 </div>
 
                 {/* Red step number */}
-                <p className="mb-1 font-condensed text-xs tracking-[0.2em] uppercase text-[#E50014]">
+                <p className="mb-1 font-condensed text-xs tracking-[0.2em] uppercase text-[#CC1E4A]">
                   PASO {step.n}
                 </p>
 
@@ -718,8 +722,8 @@ function ReservaContent() {
 
                 {/* Highlight special step (tablet) */}
                 {i === 4 && (
-                  <div className="mt-3 rounded-lg border border-[#E50014]/20 bg-[#E50014]/5 px-3 py-2">
-                    <p className="font-condensed text-xs text-[#E50014]/80 tracking-wide leading-relaxed">
+                  <div className="mt-3 rounded-lg border border-[#CC1E4A]/20 bg-[#CC1E4A]/5 px-3 py-2">
+                    <p className="font-condensed text-xs text-[#CC1E4A]/80 tracking-wide leading-relaxed">
                       💡 El código es personal e intransferible. Lo recibís por email al confirmar el pago.
                     </p>
                   </div>
@@ -734,7 +738,7 @@ function ReservaContent() {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-[#E50014] hover:bg-[#ff1a2b] text-white font-racing tracking-[0.2em] text-sm rounded-xl shadow-[0_0_24px_rgba(229,0,20,0.3)] transition-all"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-[#CC1E4A] hover:bg-[#ff1a2b] text-white font-racing tracking-[0.2em] text-sm rounded-xl shadow-[0_0_24px_rgba(204,30,74,0.3)] transition-all"
             >
               RESERVAR AHORA
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
@@ -749,7 +753,7 @@ function ReservaContent() {
       </section>
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
-      <footer className="bg-[#0D0008] border-t border-white/5 px-6 py-4 text-center">
+      <footer className="bg-[#121F45] border-t border-white/5 px-6 py-4 text-center">
         <p className="text-white/15 font-condensed text-xs tracking-widest uppercase">
           © {new Date().getFullYear()} Simulador VR
         </p>
@@ -762,8 +766,8 @@ export default function BookingPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0D0008] flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#E50014]" />
+        <div className="min-h-screen bg-[#121F45] flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#CC1E4A]" />
         </div>
       }
     >

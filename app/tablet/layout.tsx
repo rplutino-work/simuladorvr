@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import SwRegister from "./SwRegister";
 
 export const metadata: Metadata = {
-  title: "SimuladorVR",
-  description: "Panel de sesión — SimuladorVR",
+  title: "Race Room",
+  description: "Panel de sesión — Race Room",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "SimuladorVR",
+    title: "Race Room",
   },
   icons: {
     apple: "/icons/icon-192.png",
@@ -23,7 +23,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#0D0008",
+  themeColor: "#121F45",
 };
 
 export default function TabletLayout({

@@ -25,8 +25,8 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "Simulador VR - Racing Simulator",
-  description: "Sistema de reservas para simulador de carreras",
+  title: "Race Room",
+  description: "Race Room — simuladores de carreras",
 };
 
 export default function RootLayout({

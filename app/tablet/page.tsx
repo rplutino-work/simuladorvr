@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 export default function TabletSelectorPage() {
   const router = useRouter();
@@ -30,23 +31,28 @@ export default function TabletSelectorPage() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-[#0D0008] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-[#E50014] border-t-transparent rounded-full animate-spin" />
+      <div className="fixed inset-0 bg-[#121F45] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#CC1E4A] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-[#0D0008] flex flex-col items-center justify-center p-8">
+    <div className="fixed inset-0 bg-[#121F45] flex flex-col items-center justify-center p-8">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-12"
       >
-        <h1 className="font-racing text-5xl text-white tracking-wider">
-          SIMULADOR<span className="text-[#E50014]">VR</span>
-        </h1>
-        <p className="text-white/50 font-condensed text-lg tracking-widest mt-4 uppercase">
+        <Image
+          src="/race-room-logo.png"
+          alt="Race Room"
+          width={1024}
+          height={1536}
+          priority
+          className="h-32 w-auto mx-auto drop-shadow-[0_0_30px_rgba(204,30,74,0.35)]"
+        />
+        <p className="text-white/60 font-condensed text-lg tracking-widest mt-4 uppercase">
           Seleccioná el puesto de esta tablet
         </p>
       </motion.div>
@@ -61,7 +67,7 @@ export default function TabletSelectorPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => selectPuesto(p.id)}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-white/10 bg-white/5 hover:border-[#E50014] hover:bg-[#E50014]/10 transition-all duration-300"
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-white/10 bg-white/5 hover:border-[#CC1E4A] hover:bg-[#CC1E4A]/10 transition-all duration-300"
           >
             <span className="font-racing text-5xl text-white">
               {p.name.replace(/\D/g, "") || (i + 1)}
