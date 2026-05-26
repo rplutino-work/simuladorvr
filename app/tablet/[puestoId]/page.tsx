@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import QRCode from "react-qr-code";
 import { useAutoReload } from "@/lib/use-auto-reload";
 
@@ -563,7 +564,7 @@ export default function TabletPage() {
   return (
     <div
       className={`fixed inset-0 overflow-hidden select-none ${
-        isWarning ? "bg-[#1A0000]" : "bg-[#0D0008]"
+        isWarning ? "bg-[#2A0915]" : "bg-[#121F45]"
       } transition-colors duration-1000`}
       style={{ WebkitUserSelect: "none" }}
     >
@@ -581,25 +582,24 @@ export default function TabletPage() {
           >
             <RacingLines />
             <div className="relative z-10 flex flex-col items-center gap-6 px-6 w-full">
-              {/* Logo */}
+              {/* Logo — Race Room official */}
               <motion.div
                 animate={{ scale: [1, 1.03, 1] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="text-center"
+                className="w-full max-w-md sm:max-w-lg"
               >
-                <div className="flex items-center justify-center gap-3 mb-3">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E50014] shadow-[0_0_40px_rgba(229,0,20,0.6)]">
-                    <span className="font-racing text-4xl text-white">V</span>
-                  </div>
-                  <h1 className="font-racing text-6xl sm:text-7xl tracking-widest text-white">
-                    SIMULADOR<span className="text-[#E50014]">VR</span>
-                  </h1>
-                </div>
-                <div className="mx-auto h-0.5 w-36 bg-[#E50014] opacity-80" />
+                <Image
+                  src="/race-room-logo.png"
+                  alt="Race Room"
+                  width={1020}
+                  height={370}
+                  priority
+                  className="w-full h-auto drop-shadow-[0_0_60px_rgba(204,30,74,0.35)]"
+                />
               </motion.div>
 
               {/* Puesto name */}
-              <p className="font-condensed text-base tracking-[0.4em] uppercase text-white/50">
+              <p className="font-condensed text-base tracking-[0.4em] uppercase text-white/60">
                 {puestoId.replace(/-/g, " ").toUpperCase()}
               </p>
 
@@ -608,14 +608,14 @@ export default function TabletPage() {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoDirectFlow}
-                  className="flex-1 py-7 rounded-2xl bg-[#E50014] hover:bg-[#ff0020] text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(229,0,20,0.4)] transition-colors"
+                  className="flex-1 py-7 rounded-2xl bg-[#CC1E4A] hover:bg-[#e1224f] text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(204,30,74,0.5)] transition-colors"
                 >
                   🏁 Jugar ahora
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoCodeFlow}
-                  className="flex-1 py-7 rounded-2xl border-2 border-white/30 bg-white/5 hover:bg-white/10 text-white/90 font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-colors"
+                  className="flex-1 py-7 rounded-2xl border-2 border-[#FFC906]/50 bg-[#223971]/30 hover:bg-[#223971]/50 text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-colors"
                 >
                   Ya tengo código
                 </motion.button>
