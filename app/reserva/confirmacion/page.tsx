@@ -101,8 +101,8 @@ function ConfirmationContent() {
             <Image
               src="/race-room-logo.png"
               alt="Race Room"
-              width={1024}
-              height={1536}
+              width={839}
+              height={306}
               className="h-10 w-auto"
             />
           </Link>

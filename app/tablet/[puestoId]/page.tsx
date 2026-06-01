@@ -591,8 +591,8 @@ export default function TabletPage() {
                 <Image
                   src="/race-room-logo.png"
                   alt="Race Room"
-                  width={1020}
-                  height={370}
+                  width={839}
+                  height={306}
                   priority
                   className="w-full h-auto drop-shadow-[0_0_60px_rgba(204,30,74,0.35)]"
                 />
