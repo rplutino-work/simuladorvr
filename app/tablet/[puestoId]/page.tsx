@@ -137,7 +137,28 @@ function ProgressRing({ pct, warning }: { pct: number; warning: boolean }) {
 export default function TabletPage() {
   useAutoReload();
   const params = useParams();
-  const puestoId = params?.puestoId as string;
+  const rawPuestoId = params?.puestoId as string;
+
+  // Resolve numeric puesto IDs (1, 2, 3) coming from PWA shortcuts or manual
+  // URLs into the real DB cuid. If the param is already a cuid, use it as-is.
+  const [puestoId, setPuestoId] = useState<string>("");
+  useEffect(() => {
+    if (!rawPuestoId) return;
+    const isNumeric = /^\d+$/.test(rawPuestoId);
+    if (!isNumeric) {
+      setPuestoId(rawPuestoId);
+      return;
+    }
+    fetch("/api/puestos")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string; active: boolean }[]) => {
+        const activos = data.filter((p) => p.active);
+        const idx = parseInt(rawPuestoId, 10) - 1;
+        if (activos[idx]) setPuestoId(activos[idx].id);
+        else if (activos[0]) setPuestoId(activos[0].id);
+      })
+      .catch(() => {});
+  }, [rawPuestoId]);
 
   const [state, setState] = useState<State>("screensaver");
   const [codeInput, setCodeInput] = useState("");
