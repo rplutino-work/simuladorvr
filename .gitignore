@@ -60,3 +60,7 @@ Thumbs.db
 GITHUB_SSH_KEY.txt
 
 .vercel
+.env*.local
+
+# APKs compilados (artefactos de build, no versionar)
+*.apk
