@@ -15,9 +15,28 @@ import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import com.getcapacitor.BridgeActivity;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 public class MainActivity extends BridgeActivity {
 
     private PowerManager.WakeLock cpuWakeLock;
+
+    // ── Native liveness heartbeat ────────────────────────────────────────────
+    // Posts to the backend every HEARTBEAT_INTERVAL_SEC so the admin knows this
+    // device is on. Runs on a native thread — NOT the WebView — so it keeps
+    // beating even while the TV is on the PlayStation HDMI input and Chromium
+    // has frozen the WebView (which stops all JS timers). The WebView tells us
+    // who we are once via registerDevice(); native takes it from there.
+    private static final String HEARTBEAT_URL = "https://simuladorvr.vercel.app/api/devices/heartbeat";
+    private static final long HEARTBEAT_INTERVAL_SEC = 15;
+    private ScheduledExecutorService heartbeatExec;
+    private volatile String heartbeatPuestoId;
+    private volatile String heartbeatDeviceType;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,7 +58,47 @@ public class MainActivity extends BridgeActivity {
         if (cpuWakeLock != null && cpuWakeLock.isHeld()) {
             cpuWakeLock.release();
         }
+        if (heartbeatExec != null) {
+            heartbeatExec.shutdownNow();
+        }
         super.onDestroy();
+    }
+
+    /** Starts the heartbeat loop once; subsequent calls are no-ops. */
+    private synchronized void startHeartbeat() {
+        if (heartbeatExec != null) return;
+        heartbeatExec = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "SimuladorVR-Heartbeat");
+            t.setDaemon(true);
+            return t;
+        });
+        heartbeatExec.scheduleWithFixedDelay(
+            this::sendHeartbeat, 0, HEARTBEAT_INTERVAL_SEC, TimeUnit.SECONDS);
+    }
+
+    /** Fires a single heartbeat POST. Failures are swallowed — next tick retries. */
+    private void sendHeartbeat() {
+        String puestoId = heartbeatPuestoId;
+        String deviceType = heartbeatDeviceType;
+        if (puestoId == null || deviceType == null) return;
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(HEARTBEAT_URL).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            String body = "{\"puestoId\":\"" + puestoId + "\",\"deviceType\":\"" + deviceType + "\"}";
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body.getBytes("UTF-8"));
+            }
+            conn.getResponseCode(); // triggers the request
+        } catch (Exception e) {
+            // network hiccup — ignore
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 
     @Override
@@ -61,6 +120,20 @@ public class MainActivity extends BridgeActivity {
     }
 
     public class TVBridge {
+
+        /**
+         * Called once by the WebView after it resolves which puesto it is and
+         * whether it's the TABLET or TV surface. Hands those to the native
+         * heartbeat loop, which then reports liveness on its own — surviving the
+         * WebView freeze that happens on the PlayStation HDMI input.
+         */
+        @JavascriptInterface
+        public void registerDevice(String puestoId, String deviceType) {
+            if (puestoId == null || puestoId.isEmpty()) return;
+            heartbeatPuestoId = puestoId;
+            heartbeatDeviceType = "TV".equals(deviceType) ? "TV" : "TABLET";
+            startHeartbeat();
+        }
 
         @JavascriptInterface
         public void switchToHdmi1() {

@@ -195,11 +195,13 @@ export default function TVPage() {
   }, [poll, resolvedId]);
 
   // ── Device heartbeat (liveness ping for admin) ──────────────────────────
-  // While a session is on the PlayStation HDMI input the WebView is frozen and
-  // these pings stop — that's expected. The admin treats a silent TV as
-  // "En sesión (HDMI)" whenever there's an active session, not offline.
+  // Native path (APK): hand the id to the native bridge, which beats from a
+  // native thread that survives the WebView freeze on the PlayStation HDMI
+  // input. WebView path (browser/dev, or as a redundant beat while visible):
+  // POST directly every 15s. Both hit the same idempotent upsert.
   useEffect(() => {
     if (!resolvedId) return;
+    tryNativeBridge("registerDevice", resolvedId, "TV");
     const ping = () => {
       fetch("/api/devices/heartbeat", {
         method: "POST",

@@ -184,9 +184,20 @@ export default function TabletPage() {
   // ── Device heartbeat (liveness ping for admin) ──────────────────────────
   // Runs regardless of screen state — the tablet sits on the screensaver most
   // of the time, so we can't piggyback on the session poll (which only runs
-  // while a session is active). Admin marks the tablet offline if this stops.
+  // while a session is active). Registers with the native bridge (APK) so the
+  // beat survives even if the WebView is ever backgrounded, and also POSTs
+  // directly as the browser/dev fallback. Both hit the same idempotent upsert.
   useEffect(() => {
     if (!puestoId) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bridge = (window as any).NativeBridge;
+      if (bridge && typeof bridge.registerDevice === "function") {
+        bridge.registerDevice(puestoId, "TABLET");
+      }
+    } catch {
+      // not in native context
+    }
     const ping = () => {
       fetch("/api/devices/heartbeat", {
         method: "POST",
