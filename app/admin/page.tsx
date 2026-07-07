@@ -20,6 +20,142 @@ type Metrics = {
   hourlyHeatmap: { hour: number; count: number }[];
 };
 
+type DeviceRow = {
+  puestoId: string;
+  puestoName: string;
+  hasActiveSession: boolean;
+  sessionEndTime: string | null;
+  tabletLastSeen: string | null;
+  tvLastSeen: string | null;
+};
+
+// A device is considered online if it pinged within this window. Devices ping
+// every 15s, so this tolerates ~2 missed beats before flipping to offline.
+const DEVICE_OFFLINE_MS = 45 * 1000;
+
+type DeviceState = "online" | "offline" | "never" | "session";
+
+function deviceState(
+  lastSeen: string | null,
+  nowMs: number,
+  inSession: boolean,
+  isTv: boolean
+): DeviceState {
+  // On the TV, an active session means it's on the PlayStation HDMI input and
+  // the WebView is frozen — silence is expected, so report "session" not offline.
+  if (isTv && inSession) return "session";
+  if (!lastSeen) return "never";
+  const age = nowMs - new Date(lastSeen).getTime();
+  return age <= DEVICE_OFFLINE_MS ? "online" : "offline";
+}
+
+const DEVICE_LABELS: Record<DeviceState, string> = {
+  online: "Online",
+  offline: "Offline",
+  never: "Sin señal",
+  session: "En sesión (HDMI)",
+};
+
+const DEVICE_DOT: Record<DeviceState, string> = {
+  online: "bg-green-500",
+  offline: "bg-red-500",
+  never: "bg-slate-300",
+  session: "bg-amber-500",
+};
+
+function DeviceBadge({ state }: { state: DeviceState }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm">
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${DEVICE_DOT[state]} ${
+          state === "online" || state === "session" ? "animate-pulse" : ""
+        }`}
+      />
+      <span className={state === "offline" ? "font-medium text-red-600" : "text-slate-600"}>
+        {DEVICE_LABELS[state]}
+      </span>
+    </span>
+  );
+}
+
+function DeviceStatusSection() {
+  const [rows, setRows] = useState<DeviceRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [nowMs, setNowMs] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch("/api/admin/devices")
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return;
+          setRows(data.devices ?? []);
+          setLoaded(true);
+        })
+        .catch(() => {});
+    };
+    load();
+    const poll = setInterval(load, 5000);
+    // Local clock ticks every second so badges expire to offline live between fetches.
+    setNowMs(Date.now());
+    const clock = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      clearInterval(clock);
+    };
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Estado de dispositivos</CardTitle>
+        <CardDescription>Tablets y TVs por puesto (en vivo)</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!loaded ? (
+          <p className="text-sm text-slate-500">Cargando…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-slate-500">Sin puestos activos</p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div
+                key={row.puestoId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-900">{row.puestoName}</span>
+                  {row.hasActiveSession && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      En sesión
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs uppercase tracking-wide text-slate-400">Tablet</span>
+                    <DeviceBadge
+                      state={deviceState(row.tabletLastSeen, nowMs, row.hasActiveSession, false)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs uppercase tracking-wide text-slate-400">TV</span>
+                    <DeviceBadge
+                      state={deviceState(row.tvLastSeen, nowMs, row.hasActiveSession, true)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +184,8 @@ export default function AdminDashboardPage() {
           Resumen del negocio en tiempo real
         </p>
       </div>
+
+      <DeviceStatusSection />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[

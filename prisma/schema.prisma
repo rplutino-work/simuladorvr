@@ -66,12 +66,36 @@ model Puesto {
   // Pricing (stored in cents for precision)
   price30   Int      @default(0)
   price60   Int      @default(0)
+  price90   Int      @default(0)
   price120  Int      @default(0)
 
-  bookings  Booking[]
+  bookings    Booking[]
+  heartbeats  DeviceHeartbeat[]
 
   @@index([active])
   @@index([name])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DeviceHeartbeat - Liveness ping from tablet/TV WebViews (one row per device)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DeviceHeartbeat {
+  id         String     @id @default(cuid())
+  puestoId   String
+  deviceType DeviceType
+  lastSeenAt DateTime   @default(now())
+  userAgent  String?
+
+  puesto     Puesto     @relation(fields: [puestoId], references: [id], onDelete: Cascade)
+
+  @@unique([puestoId, deviceType])
+  @@index([puestoId])
+}
+
+enum DeviceType {
+  TABLET
+  TV
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

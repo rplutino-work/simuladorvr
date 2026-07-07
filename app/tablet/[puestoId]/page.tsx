@@ -181,6 +181,24 @@ export default function TabletPage() {
   const directTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const directPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Device heartbeat (liveness ping for admin) ──────────────────────────
+  // Runs regardless of screen state — the tablet sits on the screensaver most
+  // of the time, so we can't piggyback on the session poll (which only runs
+  // while a session is active). Admin marks the tablet offline if this stops.
+  useEffect(() => {
+    if (!puestoId) return;
+    const ping = () => {
+      fetch("/api/devices/heartbeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puestoId, deviceType: "TABLET" }),
+      }).catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, 15000);
+    return () => clearInterval(id);
+  }, [puestoId]);
+
   // ── Countdown tick ──────────────────────────────────────────────────────
   const startCountdown = useCallback((endTimeIso: string, durationMinutes: number) => {
     if (countdownRef.current) clearInterval(countdownRef.current);

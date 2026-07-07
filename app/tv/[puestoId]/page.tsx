@@ -194,6 +194,24 @@ export default function TVPage() {
     return () => clearInterval(interval);
   }, [poll, resolvedId]);
 
+  // ── Device heartbeat (liveness ping for admin) ──────────────────────────
+  // While a session is on the PlayStation HDMI input the WebView is frozen and
+  // these pings stop — that's expected. The admin treats a silent TV as
+  // "En sesión (HDMI)" whenever there's an active session, not offline.
+  useEffect(() => {
+    if (!resolvedId) return;
+    const ping = () => {
+      fetch("/api/devices/heartbeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puestoId: resolvedId, deviceType: "TV" }),
+      }).catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, 15000);
+    return () => clearInterval(id);
+  }, [resolvedId]);
+
   useEffect(() => {
     return () => {
       if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
