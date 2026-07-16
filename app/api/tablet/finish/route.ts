@@ -8,8 +8,14 @@ import { prisma } from "@/lib/db";
  * Manually finishes a session from the tablet.
  */
 export async function POST(req: NextRequest) {
+  let body: { bookingId?: string; puestoId?: string };
   try {
-    const { bookingId, puestoId } = await req.json();
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+  try {
+    const { bookingId, puestoId } = body;
 
     if (!bookingId || !puestoId) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });

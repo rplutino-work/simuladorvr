@@ -26,7 +26,12 @@ export async function POST(
 ) {
   try {
     const { puestoId } = await params;
-    const body = await req.json();
+    let body: { tier?: unknown; actualMinutes?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+    }
     const tier = Number(body?.tier);
     const actualMinutes = Number(body?.actualMinutes);
 

@@ -158,10 +158,12 @@ export async function isSlotAvailable(
 ): Promise<boolean> {
   const settings = await getBusinessSettings();
   const marginMs = settings.negativeMarginMinutes * 60 * 1000;
+  // Use UTC boundaries for consistency with getAvailability (the server runs in
+  // UTC on Vercel; setHours would silently break on a non-UTC host).
   const dayStart = new Date(startTime);
-  dayStart.setHours(0, 0, 0, 0);
+  dayStart.setUTCHours(0, 0, 0, 0);
   const dayEnd = new Date(startTime);
-  dayEnd.setHours(23, 59, 59, 999);
+  dayEnd.setUTCHours(23, 59, 59, 999);
 
   const bookings = await prisma.booking.findMany({
     where: {

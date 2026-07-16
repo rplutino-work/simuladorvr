@@ -10,7 +10,12 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get("date");
   const puestoId = searchParams.get("puestoId");
   const durationParam = searchParams.get("duration");
-  const durationMinutes = durationParam ? parseInt(durationParam, 10) : undefined;
+  // Sanitize: a non-numeric or non-positive duration must fall back to the
+  // slot-interval default, otherwise NaN propagates and every slot reads as
+  // available (Invalid Date comparisons are always false).
+  const parsedDuration = durationParam ? parseInt(durationParam, 10) : NaN;
+  const durationMinutes =
+    Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : undefined;
 
   if (!date) {
     return NextResponse.json(

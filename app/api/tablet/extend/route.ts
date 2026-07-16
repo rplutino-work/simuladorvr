@@ -11,11 +11,24 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
  * When the webhook confirms payment, the booking's endTime is extended.
  */
 export async function POST(req: NextRequest) {
+  let body: { bookingId?: string; additionalMinutes?: number; puestoId?: string };
   try {
-    const { bookingId, additionalMinutes, puestoId } = await req.json();
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+  try {
+    const { bookingId, additionalMinutes, puestoId } = body;
 
     if (!bookingId || !additionalMinutes || !puestoId) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
+    }
+
+    // Only the configured tiers can be purchased as an extension — otherwise the
+    // price falls through to price120 (see below) while the webhook extends by
+    // the literal minutes, charging the wrong amount.
+    if (![30, 60, 120].includes(Number(additionalMinutes))) {
+      return NextResponse.json({ error: "Duración de extensión inválida" }, { status: 400 });
     }
 
     const booking = await prisma.booking.findFirst({

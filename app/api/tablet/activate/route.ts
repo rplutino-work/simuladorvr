@@ -10,8 +10,14 @@ import { prisma } from "@/lib/db";
  * - Sets status = ACTIVE, recalculates endTime from now
  */
 export async function POST(req: NextRequest) {
+  let body: { code?: string; puestoId?: string };
   try {
-    const { code, puestoId } = await req.json();
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+  try {
+    const { code, puestoId } = body;
 
     if (!code || !puestoId) {
       return NextResponse.json({ error: "Código y puesto requeridos" }, { status: 400 });
@@ -68,6 +74,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Esta reserva no está confirmada. Completá el pago primero." },
         { status: 400 }
+      );
+    }
+
+    // Don't start a second session on a puesto that already has one running
+    // (e.g. two valid codes presented back-to-back). Otherwise both stay ACTIVE
+    // forever, blocking availability and confusing the status endpoint.
+    const activeOnPuesto = await prisma.booking.findFirst({
+      where: { puestoId, status: "ACTIVE", id: { not: booking.id } },
+    });
+    if (activeOnPuesto) {
+      return NextResponse.json(
+        { error: "El simulador ya tiene una sesión en curso. Esperá a que termine." },
+        { status: 409 }
       );
     }
 

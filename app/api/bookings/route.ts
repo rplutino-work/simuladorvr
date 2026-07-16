@@ -10,7 +10,12 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+    }
     const parsed = createBookingSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

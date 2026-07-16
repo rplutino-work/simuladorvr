@@ -153,8 +153,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
-    if (booking.status === "PAID") {
-      return NextResponse.json({ ok: true });
+    // Only a still-PENDING booking should be confirmed. Anything else means:
+    //  - PAID: duplicate webhook (idempotent no-op)
+    //  - CANCELLED/EXPIRED: customer abandoned it (possibly refunded). Do NOT
+    //    auto-revive — the slot may have been reassigned. Leave for manual
+    //    handling, mirroring the direct-purchase branch above.
+    //  - ACTIVE/FINISHED: already in use / done.
+    if (booking.status !== "PENDING") {
+      return NextResponse.json({ ok: true, skipped: booking.status });
     }
 
     // Generate unique code and cancel token
