@@ -61,6 +61,20 @@ export async function PATCH(req: NextRequest) {
       },
     });
   }
+
+  // Guard against an inverted schedule: with closeHour <= openHour every
+  // "withinSchedule" check is false, which silently turns off every TV,
+  // blocks direct purchases and hides all slots. Validate against the merged
+  // (post-update) state so partial patches are covered too.
+  const effOpen = parsed.data.openHour ?? settings.openHour;
+  const effClose = parsed.data.closeHour ?? settings.closeHour;
+  if (effClose <= effOpen) {
+    return NextResponse.json(
+      { error: "La hora de cierre debe ser mayor a la de apertura" },
+      { status: 400 }
+    );
+  }
+
   const updated = await prisma.businessSettings.update({
     where: { id: settings.id },
     data: parsed.data,

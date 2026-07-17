@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
 
   const priceKey = `price${duration}` as "price30" | "price60" | "price120";
   const price = puesto[priceKey];
+  if (!price || price <= 0) {
+    return NextResponse.json(
+      { error: "Precio no configurado para esta duración en este puesto" },
+      { status: 400 }
+    );
+  }
 
   // Generate unique code and cancel token
   let code = generateBookingCode();
