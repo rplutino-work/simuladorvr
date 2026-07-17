@@ -47,7 +47,7 @@ const HOW_STEPS = [
     n: "03",
     icon: "📧",
     title: "RECIBÍ TU CÓDIGO",
-    desc: "En segundos te enviamos un código de 6 caracteres al email. Guardalo: es tu llave de entrada.",
+    desc: "En segundos te enviamos un código de 4 caracteres al email. Guardalo: es tu llave de entrada.",
   },
   {
     n: "04",
@@ -59,7 +59,7 @@ const HOW_STEPS = [
     n: "05",
     icon: "📱",
     title: "INGRESÁ EL CÓDIGO EN LA TABLET",
-    desc: "Cada simulador tiene una tablet. Tocá 'Iniciar sesión', ingresá tu código de 6 caracteres y la pantalla se activa automáticamente.",
+    desc: "Cada simulador tiene una tablet. Tocá 'Iniciar sesión', ingresá tu código de 4 caracteres y la pantalla se activa automáticamente.",
   },
   {
     n: "06",
