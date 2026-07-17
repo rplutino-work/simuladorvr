@@ -89,9 +89,9 @@ function ConfirmationContent() {
   const isPaid = (booking?.status === "PAID" || booking?.status === "ACTIVE") && booking?.code;
 
   return (
-    <div className="min-h-screen bg-[#121F45]">
+    <div className="min-h-screen bg-[#0A0A0C]">
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#121F45]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0A0A0C]/90 backdrop-blur-md">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition font-condensed tracking-wide">
             <ChevronLeft className="h-4 w-4" />
@@ -122,7 +122,7 @@ function ConfirmationContent() {
               <h2 className="font-racing tracking-wider text-white text-xl">SIN RESERVA</h2>
               <p className="mt-1 text-sm text-white/50">No se encontró un ID de reserva.</p>
               <Link href="/reserva" className="mt-5 block">
-                <button className="w-full h-11 rounded-xl bg-[#CC1E4A] font-condensed font-bold tracking-widest uppercase text-sm text-white hover:bg-[#ff1a2b] transition">
+                <button className="w-full h-11 rounded-xl bg-[#E60012] font-condensed font-bold tracking-widest uppercase text-sm text-white hover:bg-[#ff1a2b] transition">
                   IR A RESERVAR
                 </button>
               </Link>
@@ -132,9 +132,9 @@ function ConfirmationContent() {
           {/* ── Error ──────────────────────────────────────────────────── */}
           {bookingId && error && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-[#CC1E4A]/30 bg-[#CC1E4A]/10 p-8 text-center"
+              className="rounded-2xl border border-[#E60012]/30 bg-[#E60012]/10 p-8 text-center"
             >
-              <AlertCircle className="mx-auto h-10 w-10 text-[#CC1E4A] mb-4" />
+              <AlertCircle className="mx-auto h-10 w-10 text-[#E60012] mb-4" />
               <h2 className="font-racing tracking-wider text-white text-xl">ERROR</h2>
               <p className="mt-1 text-sm text-white/60">{error}</p>
               <Link href="/reserva" className="mt-5 block">
@@ -158,16 +158,16 @@ function ConfirmationContent() {
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.1, type: "spring", stiffness: 300 }}
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-[#CC1E4A]/20 border-2 border-[#CC1E4A]/40"
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E60012]/20 border-2 border-[#E60012]/40"
                 >
-                  <CheckCircle className="h-8 w-8 text-[#CC1E4A]" />
+                  <CheckCircle className="h-8 w-8 text-[#E60012]" />
                 </motion.div>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
                 {/* Code block */}
-                <div className="bg-[#121F45] border-b border-[#CC1E4A]/30 px-6 py-6 text-center relative">
-                  <div className="absolute inset-y-0 left-0 w-1 bg-[#CC1E4A]" />
+                <div className="bg-[#0A0A0C] border-b border-[#E60012]/30 px-6 py-6 text-center relative">
+                  <div className="absolute inset-y-0 left-0 w-1 bg-[#E60012]" />
                   <p className="font-condensed text-xs font-semibold tracking-widest uppercase text-white/40 mb-2">
                     CÓDIGO DE ACCESO
                   </p>
@@ -175,7 +175,7 @@ function ConfirmationContent() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="font-racing text-5xl sm:text-6xl tracking-[0.3em] text-white drop-shadow-[0_0_20px_rgba(204,30,74,0.5)]"
+                    className="font-racing text-5xl sm:text-6xl tracking-[0.3em] text-white drop-shadow-[0_0_20px_rgba(230,0,18,0.5)]"
                   >
                     {booking?.code}
                   </motion.p>
@@ -212,10 +212,10 @@ function ConfirmationContent() {
 
                   <button
                     onClick={handleCopy}
-                    className="w-full h-11 rounded-xl border border-white/20 hover:border-[#CC1E4A]/50 font-condensed font-bold tracking-widest uppercase text-sm text-white/70 hover:text-white transition flex items-center justify-center gap-2"
+                    className="w-full h-11 rounded-xl border border-white/20 hover:border-[#E60012]/50 font-condensed font-bold tracking-widest uppercase text-sm text-white/70 hover:text-white transition flex items-center justify-center gap-2"
                   >
                     {copied ? (
-                      <><CheckCircle className="h-4 w-4 text-[#CC1E4A]" /> COPIADO</>
+                      <><CheckCircle className="h-4 w-4 text-[#E60012]" /> COPIADO</>
                     ) : (
                       <><Copy className="h-4 w-4" /> COPIAR CÓDIGO</>
                     )}
@@ -228,7 +228,7 @@ function ConfirmationContent() {
                       </button>
                     </Link>
                     <Link href="/reserva" className="flex-1">
-                      <button className="w-full h-10 rounded-xl bg-[#CC1E4A] hover:bg-[#ff1a2b] font-condensed font-bold text-xs tracking-widest uppercase text-white transition shadow-[0_0_12px_rgba(204,30,74,0.3)]">
+                      <button className="w-full h-10 rounded-xl bg-[#E60012] hover:bg-[#ff1a2b] font-condensed font-bold text-xs tracking-widest uppercase text-white transition shadow-[0_0_12px_rgba(230,0,18,0.3)]">
                         NUEVA RESERVA
                       </button>
                     </Link>
@@ -244,8 +244,8 @@ function ConfirmationContent() {
               <div className="rounded-2xl border border-white/10 bg-white/5">
                 <div className="flex flex-col items-center gap-4 px-6 py-10">
                   <div className="relative flex h-16 w-16 items-center justify-center">
-                    <div className="absolute inset-0 animate-ping rounded-full bg-[#CC1E4A]/20" />
-                    <div className="relative h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-[#CC1E4A]" />
+                    <div className="absolute inset-0 animate-ping rounded-full bg-[#E60012]/20" />
+                    <div className="relative h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-[#E60012]" />
                   </div>
                   <div className="text-center">
                     <h2 className="font-racing text-xl tracking-wider text-white">PROCESANDO PAGO...</h2>
@@ -260,7 +260,7 @@ function ConfirmationContent() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 rounded-xl border border-[#CC1E4A]/20 bg-[#CC1E4A]/10 px-4 py-2.5 text-xs text-[#CC1E4A] font-condensed tracking-wide">
+                  <div className="flex items-center gap-2 rounded-xl border border-[#E60012]/20 bg-[#E60012]/10 px-4 py-2.5 text-xs text-[#E60012] font-condensed tracking-wide">
                     <Clock className="h-3.5 w-3.5 flex-shrink-0" />
                     Puede tardar unos segundos
                   </div>
@@ -285,8 +285,8 @@ export default function ConfirmationPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#121F45] flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#CC1E4A]" />
+        <div className="min-h-screen bg-[#0A0A0C] flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#E60012]" />
         </div>
       }
     >

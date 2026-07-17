@@ -20,12 +20,12 @@ const fadeIn = (delay = 0) => ({
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-[#121F45] text-white overflow-x-hidden">
+    <main className="min-h-screen bg-[#0A0A0C] text-white overflow-x-hidden">
 
       {/* ── Header ──────────────────────────────────────────────────── */}
       <motion.header
         {...fadeIn(0)}
-        className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#121F45]/90 backdrop-blur-md"
+        className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0A0A0C]/90 backdrop-blur-md"
       >
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
           {/* Logo */}
@@ -36,7 +36,7 @@ export default function LandingPage() {
               width={512}
               height={512}
               priority
-              className="h-12 w-auto drop-shadow-[0_0_12px_rgba(204,30,74,0.4)]"
+              className="h-12 w-auto drop-shadow-[0_0_12px_rgba(230,0,18,0.4)]"
             />
           </Link>
 
@@ -50,7 +50,7 @@ export default function LandingPage() {
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
-                className="font-condensed font-bold tracking-widest uppercase text-xs bg-[#CC1E4A] hover:bg-[#ff1a2b] text-white px-5 py-2.5 rounded shadow-[0_0_16px_rgba(204,30,74,0.4)] transition-colors"
+                className="font-condensed font-bold tracking-widest uppercase text-xs bg-[#E60012] hover:bg-[#ff1a2b] text-white px-5 py-2.5 rounded shadow-[0_0_16px_rgba(230,0,18,0.4)] transition-colors"
               >
                 RESERVAR
               </motion.button>
@@ -72,7 +72,7 @@ export default function LandingPage() {
             unoptimized
           />
           {/* Dark gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#121F45]/80 via-[#121F45]/70 to-[#121F45]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0C]/80 via-[#0A0A0C]/70 to-[#0A0A0C]" />
         </div>
 
         {/* Hero content */}
@@ -80,7 +80,7 @@ export default function LandingPage() {
 
           {/* Category pill */}
           <motion.div {...fadeUp(0.2)}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#CC1E4A]/40 bg-[#CC1E4A]/10 px-4 py-1.5 text-xs font-condensed font-semibold uppercase tracking-widest text-[#CC1E4A] mb-6">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#E60012]/40 bg-[#E60012]/10 px-4 py-1.5 text-xs font-condensed font-semibold uppercase tracking-widest text-[#E60012] mb-6">
               <Zap className="h-3.5 w-3.5" />
               Simulador de Racing en VR
             </span>
@@ -92,7 +92,7 @@ export default function LandingPage() {
             className="font-racing text-6xl sm:text-7xl lg:text-9xl leading-none tracking-wider"
           >
             <span className="block text-white">VIVE LA</span>
-            <span className="block text-[#CC1E4A] drop-shadow-[0_0_30px_rgba(204,30,74,0.6)]">
+            <span className="block text-[#E60012] drop-shadow-[0_0_30px_rgba(230,0,18,0.6)]">
               ADRENALINA
             </span>
             <span className="block text-white text-4xl sm:text-5xl lg:text-7xl mt-1">
@@ -103,7 +103,7 @@ export default function LandingPage() {
           {/* Divider bar */}
           <motion.div
             {...fadeIn(0.5)}
-            className="mx-auto mt-6 mb-6 h-0.5 w-24 bg-[#CC1E4A]"
+            className="mx-auto mt-6 mb-6 h-0.5 w-24 bg-[#E60012]"
           />
 
           <motion.p
@@ -121,9 +121,9 @@ export default function LandingPage() {
           >
             <Link href="/reserva">
               <motion.button
-                whileHover={{ scale: 1.04, boxShadow: "0 0 32px rgba(204,30,74,0.6)" }}
+                whileHover={{ scale: 1.04, boxShadow: "0 0 32px rgba(230,0,18,0.6)" }}
                 whileTap={{ scale: 0.96 }}
-                className="font-condensed font-bold tracking-widest uppercase text-sm bg-[#CC1E4A] hover:bg-[#ff1a2b] text-white px-10 py-4 rounded flex items-center gap-2 shadow-[0_0_20px_rgba(204,30,74,0.4)] transition-colors w-full sm:w-auto justify-center"
+                className="font-condensed font-bold tracking-widest uppercase text-sm bg-[#E60012] hover:bg-[#ff1a2b] text-white px-10 py-4 rounded flex items-center gap-2 shadow-[0_0_20px_rgba(230,0,18,0.4)] transition-colors w-full sm:w-auto justify-center"
               >
                 RESERVAR AHORA
                 <ChevronRight className="h-4 w-4" />
@@ -155,7 +155,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Stats strip ─────────────────────────────────────────────── */}
-      <section className="bg-[#CC1E4A] py-4">
+      <section className="bg-[#E60012] py-4">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-3 divide-x divide-white/20">
             {[
@@ -180,7 +180,7 @@ export default function LandingPage() {
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
       {/* ── Cómo funciona ───────────────────────────────────────────── */}
-      <section id="como-funciona" className="bg-[#121F45] py-16 sm:py-24">
+      <section id="como-funciona" className="bg-[#0A0A0C] py-16 sm:py-24">
         <div className="container mx-auto px-4 sm:px-6">
 
           <motion.div
@@ -189,13 +189,13 @@ export default function LandingPage() {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <span className="inline-block font-condensed text-xs font-semibold tracking-widest uppercase text-[#CC1E4A] mb-3">
+            <span className="inline-block font-condensed text-xs font-semibold tracking-widest uppercase text-[#E60012] mb-3">
               PROCESO
             </span>
             <h2 className="font-racing text-4xl sm:text-5xl lg:text-6xl tracking-wider text-white">
-              CÓMO <span className="text-[#CC1E4A]">FUNCIONA</span>
+              CÓMO <span className="text-[#E60012]">FUNCIONA</span>
             </h2>
-            <div className="mx-auto mt-4 h-0.5 w-16 bg-[#CC1E4A]" />
+            <div className="mx-auto mt-4 h-0.5 w-16 bg-[#E60012]" />
           </motion.div>
 
           <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-3 max-w-5xl mx-auto">
@@ -204,19 +204,19 @@ export default function LandingPage() {
                 num: "01",
                 title: "ELIGE TU SIMULADOR",
                 desc: "Seleccioná el puesto disponible, la fecha y la duración de tu sesión — 30, 60 o 120 minutos.",
-                color: "#CC1E4A",
+                color: "#E60012",
               },
               {
                 num: "02",
                 title: "PAGO SEGURO",
                 desc: "Pagá con MercadoPago. Débito, crédito o efectivo. Proceso encriptado y seguro.",
-                color: "#223971",
+                color: "#241016",
               },
               {
                 num: "03",
                 title: "A LA PISTA",
                 desc: "Recibís un código único al instante. Presentalo al llegar y arrancá a correr.",
-                color: "#CC1E4A",
+                color: "#E60012",
               },
             ].map((item, i) => (
               <motion.div
@@ -259,7 +259,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features row ────────────────────────────────────────────── */}
-      <section className="bg-[#121F45] border-t border-white/5 py-12">
+      <section className="bg-[#0A0A0C] border-t border-white/5 py-12">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
@@ -267,19 +267,19 @@ export default function LandingPage() {
                 icon: Zap,
                 title: "Respuesta inmediata",
                 desc: "Tu código llega por email al instante después del pago.",
-                color: "#CC1E4A",
+                color: "#E60012",
               },
               {
                 icon: Shield,
                 title: "Pago protegido",
                 desc: "MercadoPago con encriptado SSL. Sin riesgos.",
-                color: "#223971",
+                color: "#241016",
               },
               {
                 icon: Clock,
                 title: "Reserva flexible",
                 desc: "Cancelá o reprogramá tu turno con anticipación.",
-                color: "#CC1E4A",
+                color: "#E60012",
               },
             ].map((f, i) => (
               <motion.div
@@ -319,7 +319,7 @@ export default function LandingPage() {
             className="object-cover object-center opacity-20"
             unoptimized
           />
-          <div className="absolute inset-0 bg-[#CC1E4A]" style={{ opacity: 0.92 }} />
+          <div className="absolute inset-0 bg-[#E60012]" style={{ opacity: 0.92 }} />
         </div>
 
         <motion.div
@@ -339,9 +339,9 @@ export default function LandingPage() {
           </p>
           <Link href="/reserva">
             <motion.button
-              whileHover={{ scale: 1.05, backgroundColor: "#121F45" }}
+              whileHover={{ scale: 1.05, backgroundColor: "#0A0A0C" }}
               whileTap={{ scale: 0.96 }}
-              className="font-condensed font-bold tracking-widest uppercase text-sm bg-[#121F45] text-white px-12 py-4 rounded transition-colors inline-flex items-center gap-2"
+              className="font-condensed font-bold tracking-widest uppercase text-sm bg-[#0A0A0C] text-white px-12 py-4 rounded transition-colors inline-flex items-center gap-2"
             >
               VER DISPONIBILIDAD
               <ChevronRight className="h-4 w-4" />
@@ -351,7 +351,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="bg-[#121F45] border-t border-white/10 py-8">
+      <footer className="bg-[#0A0A0C] border-t border-white/10 py-8">
         <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
           <Link href="/" className="flex items-center gap-2">
             <Image

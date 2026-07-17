@@ -71,7 +71,7 @@ function RacingLines() {
       {[...Array(6)].map((_, i) => (
         <motion.div
           key={i}
-          className="absolute h-px bg-gradient-to-r from-transparent via-[#CC1E4A] to-transparent opacity-40"
+          className="absolute h-px bg-gradient-to-r from-transparent via-[#E60012] to-transparent opacity-40"
           style={{ top: `${15 + i * 14}%`, left: 0, right: 0 }}
           initial={{ x: "-100%" }}
           animate={{ x: "200%" }}
@@ -117,14 +117,14 @@ function ProgressRing({ pct, warning }: { pct: number; warning: boolean }) {
         cy="150"
         r={r}
         fill="none"
-        stroke={warning ? "#CC1E4A" : "#CC1E4A"}
+        stroke={warning ? "#E60012" : "#E60012"}
         strokeWidth="6"
         strokeLinecap="round"
         strokeDasharray={`${dash} ${circ}`}
         transform="rotate(-90 150 150)"
         initial={false}
         animate={{
-          stroke: warning ? ["#CC1E4A", "#ff6b6b", "#CC1E4A"] : "#CC1E4A",
+          stroke: warning ? ["#E60012", "#ff6b6b", "#E60012"] : "#E60012",
           strokeDasharray: `${dash} ${circ}`,
         }}
         transition={warning ? { stroke: { duration: 0.8, repeat: Infinity } } : { duration: 0.5 }}
@@ -614,7 +614,7 @@ export default function TabletPage() {
   return (
     <div
       className={`fixed inset-0 overflow-hidden select-none ${
-        isWarning ? "bg-[#2A0915]" : "bg-[#121F45]"
+        isWarning ? "bg-[#1A0609]" : "bg-[#0A0A0C]"
       } transition-colors duration-1000`}
       style={{ WebkitUserSelect: "none" }}
     >
@@ -644,7 +644,7 @@ export default function TabletPage() {
                   width={512}
                   height={512}
                   priority
-                  className="w-full h-auto drop-shadow-[0_0_60px_rgba(204,30,74,0.35)]"
+                  className="w-full h-auto drop-shadow-[0_0_60px_rgba(230,0,18,0.35)]"
                 />
               </motion.div>
 
@@ -658,14 +658,14 @@ export default function TabletPage() {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoDirectFlow}
-                  className="flex-1 py-7 rounded-2xl bg-[#CC1E4A] hover:bg-[#e1224f] text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(204,30,74,0.5)] transition-colors"
+                  className="flex-1 py-7 rounded-2xl bg-[#E60012] hover:bg-[#e1224f] text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase shadow-[0_0_40px_rgba(230,0,18,0.5)] transition-colors"
                 >
                   🏁 Jugar ahora
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleGoCodeFlow}
-                  className="flex-1 py-7 rounded-2xl border-2 border-[#FFC906]/50 bg-[#223971]/30 hover:bg-[#223971]/50 text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-colors"
+                  className="flex-1 py-7 rounded-2xl border-2 border-[#FFFFFF]/50 bg-[#241016]/30 hover:bg-[#241016]/50 text-white font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-colors"
                 >
                   Ya tengo código
                 </motion.button>
@@ -700,7 +700,7 @@ export default function TabletPage() {
 
               {directOptions.length === 0 ? (
                 <div className="flex items-center justify-center py-20">
-                  <div className="w-10 h-10 border-4 border-[#CC1E4A] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-10 h-10 border-4 border-[#E60012] border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
@@ -729,7 +729,7 @@ export default function TabletPage() {
                         onClick={() => handleSelectDirectOption(opt)}
                         className={`relative flex flex-col items-center justify-center rounded-2xl border-2 py-8 px-5 transition-all ${
                           opt.available
-                            ? "border-white/15 bg-white/5 hover:border-[#CC1E4A]/70 hover:bg-[#CC1E4A]/10 cursor-pointer"
+                            ? "border-white/15 bg-white/5 hover:border-[#E60012]/70 hover:bg-[#E60012]/10 cursor-pointer"
                             : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50"
                         }`}
                       >
@@ -746,7 +746,7 @@ export default function TabletPage() {
                         <span className="font-condensed text-sm tracking-widest uppercase text-white/60 mt-1">
                           minutos
                         </span>
-                        <span className="font-racing text-3xl sm:text-4xl text-[#CC1E4A] mt-5">
+                        <span className="font-racing text-3xl sm:text-4xl text-[#E60012] mt-5">
                           {fullPriceStr}
                         </span>
 
@@ -802,7 +802,7 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-14 h-14 border-4 border-[#CC1E4A] border-t-transparent rounded-full animate-spin mb-6" />
+            <div className="w-14 h-14 border-4 border-[#E60012] border-t-transparent rounded-full animate-spin mb-6" />
             <p className="font-condensed text-sm tracking-widest uppercase text-white/50">
               Generando link de pago…
             </p>
@@ -831,7 +831,7 @@ export default function TabletPage() {
                 })}
               </p>
 
-              <div className="bg-white p-4 rounded-2xl inline-block mb-4 shadow-[0_0_40px_rgba(204,30,74,0.25)]">
+              <div className="bg-white p-4 rounded-2xl inline-block mb-4 shadow-[0_0_40px_rgba(230,0,18,0.25)]">
                 <QRCode value={directUrl} size={200} />
               </div>
 
@@ -847,7 +847,7 @@ export default function TabletPage() {
                 </span>
                 <span
                   className={`font-racing text-3xl tracking-wider ${
-                    directSecondsLeft <= 15 ? "text-[#CC1E4A]" : "text-white"
+                    directSecondsLeft <= 15 ? "text-[#E60012]" : "text-white"
                   }`}
                 >
                   0:{String(directSecondsLeft).padStart(2, "0")}
@@ -876,7 +876,7 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#1A2B58] p-10">
+            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#17171C] p-10">
               <h3 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-4">
                 ¿CANCELAR EL PAGO?
               </h3>
@@ -886,7 +886,7 @@ export default function TabletPage() {
               <div className="flex flex-col gap-4">
                 <button
                   onClick={handleConfirmCancelDirect}
-                  className="py-5 rounded-xl bg-[#CC1E4A] hover:bg-[#e1224f] text-white font-racing text-xl tracking-widest uppercase transition"
+                  className="py-5 rounded-xl bg-[#E60012] hover:bg-[#e1224f] text-white font-racing text-xl tracking-widest uppercase transition"
                 >
                   Sí, cancelar
                 </button>
@@ -910,7 +910,7 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-14 h-14 border-4 border-[#CC1E4A] border-t-transparent rounded-full animate-spin mb-6" />
+            <div className="w-14 h-14 border-4 border-[#E60012] border-t-transparent rounded-full animate-spin mb-6" />
             <p className="font-condensed text-sm tracking-widest uppercase text-white/50">
               Confirmando pago…
             </p>
@@ -950,7 +950,7 @@ export default function TabletPage() {
                   key={i}
                   className={`w-20 h-24 sm:w-24 sm:h-28 rounded-2xl border-2 flex items-center justify-center transition-all duration-200 ${
                     codeInput.length === i
-                      ? "border-[#CC1E4A] bg-[#CC1E4A]/10 shadow-[0_0_20px_rgba(204,30,74,0.3)]"
+                      ? "border-[#E60012] bg-[#E60012]/10 shadow-[0_0_20px_rgba(230,0,18,0.3)]"
                       : codeInput[i]
                       ? "border-white/30 bg-white/10"
                       : "border-white/10 bg-white/5"
@@ -976,7 +976,7 @@ export default function TabletPage() {
                 const ROW_QWERTY_BOT = ["Z", "X", "C", "V", "B", "N", "M"];
 
                 const keyClass =
-                  "h-14 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl sm:text-3xl text-white active:bg-[#CC1E4A]/30 active:border-[#CC1E4A]/50 transition-colors select-none";
+                  "h-14 sm:h-16 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center font-racing text-2xl sm:text-3xl text-white active:bg-[#E60012]/30 active:border-[#E60012]/50 transition-colors select-none";
 
                 return (
                   <>
@@ -1056,7 +1056,7 @@ export default function TabletPage() {
                       disabled={codeInput.length !== 4}
                       className={`w-full h-16 sm:h-20 rounded-xl font-racing text-2xl sm:text-3xl tracking-[0.25em] uppercase transition-all ${
                         codeInput.length === 4
-                          ? "bg-[#CC1E4A] text-white shadow-[0_0_40px_rgba(204,30,74,0.5)] hover:bg-[#e1224f]"
+                          ? "bg-[#E60012] text-white shadow-[0_0_40px_rgba(230,0,18,0.5)] hover:bg-[#e1224f]"
                           : "bg-white/5 text-white/20 cursor-not-allowed"
                       }`}
                     >
@@ -1081,7 +1081,7 @@ export default function TabletPage() {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="h-20 w-20 rounded-full border-4 border-white/10 border-t-[#CC1E4A]"
+              className="h-20 w-20 rounded-full border-4 border-white/10 border-t-[#E60012]"
             />
             <p className="font-racing text-2xl tracking-widest text-white/60 uppercase">
               VALIDANDO...
@@ -1121,7 +1121,7 @@ export default function TabletPage() {
                   setErrorMsg("");
                   setState("input");
                 }}
-                className="w-full rounded-2xl bg-[#CC1E4A] py-5 font-racing text-xl tracking-widest text-white uppercase shadow-[0_0_24px_rgba(204,30,74,0.35)]"
+                className="w-full rounded-2xl bg-[#E60012] py-5 font-racing text-xl tracking-widest text-white uppercase shadow-[0_0_24px_rgba(230,0,18,0.35)]"
               >
                 INTENTAR DE NUEVO
               </motion.button>
@@ -1149,7 +1149,7 @@ export default function TabletPage() {
               {isWarning && (
                 <motion.div
                   key="warning-overlay"
-                  className="pointer-events-none absolute inset-0 border-4 border-[#CC1E4A] rounded-none"
+                  className="pointer-events-none absolute inset-0 border-4 border-[#E60012] rounded-none"
                   animate={{ opacity: [0.6, 0, 0.6] }}
                   transition={{ duration: 1, repeat: Infinity }}
                 />
@@ -1177,7 +1177,7 @@ export default function TabletPage() {
                 </div>
               )}
               {isWarning && (
-                <div className="flex items-center gap-2 rounded-xl border border-[#CC1E4A]/50 bg-[#CC1E4A]/20 px-4 py-2">
+                <div className="flex items-center gap-2 rounded-xl border border-[#E60012]/50 bg-[#E60012]/20 px-4 py-2">
                   <motion.span
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{ duration: 0.7, repeat: Infinity }}
@@ -1185,7 +1185,7 @@ export default function TabletPage() {
                   >
                     ⚠️
                   </motion.span>
-                  <span className="font-racing text-base tracking-widest text-[#CC1E4A]">
+                  <span className="font-racing text-base tracking-widest text-[#E60012]">
                     ¡ÚLTIMOS MINUTOS!
                   </span>
                 </div>
@@ -1199,7 +1199,7 @@ export default function TabletPage() {
                 <div className="text-center z-10">
                   <motion.p
                     className={`font-racing leading-none ${
-                      isWarning ? "text-[#CC1E4A]" : "text-white"
+                      isWarning ? "text-[#E60012]" : "text-white"
                     }`}
                     style={{ fontSize: remainingMs >= 3600000 ? "3rem" : "4rem" }}
                     animate={isWarning ? { scale: [1, 1.04, 1] } : {}}
@@ -1219,7 +1219,7 @@ export default function TabletPage() {
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={() => setState("extend_options")}
-                className="rounded-2xl border border-[#CC1E4A]/40 bg-[#CC1E4A]/10 py-5 font-racing text-xl sm:text-2xl tracking-widest text-[#CC1E4A] uppercase hover:bg-[#CC1E4A]/20 transition"
+                className="rounded-2xl border border-[#E60012]/40 bg-[#E60012]/10 py-5 font-racing text-xl sm:text-2xl tracking-widest text-[#E60012] uppercase hover:bg-[#E60012]/20 transition"
               >
                 +TIEMPO
               </motion.button>
@@ -1259,9 +1259,9 @@ export default function TabletPage() {
                     key={min}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleExtendSelect(min)}
-                    className="flex flex-col items-center justify-center rounded-2xl border-2 border-white/10 bg-white/5 py-8 hover:border-[#CC1E4A]/60 hover:bg-[#CC1E4A]/10 transition-all group"
+                    className="flex flex-col items-center justify-center rounded-2xl border-2 border-white/10 bg-white/5 py-8 hover:border-[#E60012]/60 hover:bg-[#E60012]/10 transition-all group"
                   >
-                    <span className="font-racing text-5xl text-white group-hover:text-[#CC1E4A] transition-colors">
+                    <span className="font-racing text-5xl text-white group-hover:text-[#E60012] transition-colors">
                       +{min}
                     </span>
                     <span className="font-condensed text-xs tracking-widest uppercase text-white/30 mt-1 group-hover:text-white/60 transition-colors">
@@ -1299,7 +1299,7 @@ export default function TabletPage() {
               </p>
 
               {/* QR */}
-              <div className="mx-auto mb-8 inline-block rounded-2xl bg-white p-5 shadow-[0_0_40px_rgba(204,30,74,0.2)]">
+              <div className="mx-auto mb-8 inline-block rounded-2xl bg-white p-5 shadow-[0_0_40px_rgba(230,0,18,0.2)]">
                 <QRCode value={extendUrl} size={220} />
               </div>
 
@@ -1312,7 +1312,7 @@ export default function TabletPage() {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleExtendWait}
-                className="w-full rounded-2xl bg-[#CC1E4A] py-5 font-racing text-xl tracking-widest text-white uppercase shadow-[0_0_24px_rgba(204,30,74,0.35)] mb-4"
+                className="w-full rounded-2xl bg-[#E60012] py-5 font-racing text-xl tracking-widest text-white uppercase shadow-[0_0_24px_rgba(230,0,18,0.35)] mb-4"
               >
                 YA PAGUÉ → ESPERAR CONFIRMACIÓN
               </motion.button>
@@ -1336,7 +1336,7 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#1A2B58] p-10">
+            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#17171C] p-10">
               <h3 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-4">
                 ¿CANCELAR EL PAGO?
               </h3>
@@ -1346,7 +1346,7 @@ export default function TabletPage() {
               <div className="flex flex-col gap-4">
                 <button
                   onClick={handleCancelExtend}
-                  className="py-5 rounded-xl bg-[#CC1E4A] hover:bg-[#e1224f] text-white font-racing text-xl tracking-widest uppercase transition"
+                  className="py-5 rounded-xl bg-[#E60012] hover:bg-[#e1224f] text-white font-racing text-xl tracking-widest uppercase transition"
                 >
                   Sí, cancelar
                 </button>
@@ -1370,7 +1370,7 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#1A2B58] p-10">
+            <div className="w-full max-w-lg text-center rounded-2xl border border-white/10 bg-[#17171C] p-10">
               <h3 className="font-racing text-3xl sm:text-4xl tracking-widest text-white mb-4">
                 ¿FINALIZAR LA SESIÓN?
               </h3>
@@ -1383,7 +1383,7 @@ export default function TabletPage() {
               <div className="flex flex-col gap-4">
                 <button
                   onClick={handleConfirmFinish}
-                  className="py-5 rounded-xl bg-[#CC1E4A] hover:bg-[#e1224f] text-white font-racing text-xl tracking-widest uppercase transition"
+                  className="py-5 rounded-xl bg-[#E60012] hover:bg-[#e1224f] text-white font-racing text-xl tracking-widest uppercase transition"
                 >
                   Sí, finalizar
                 </button>
@@ -1410,7 +1410,7 @@ export default function TabletPage() {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-              className="h-20 w-20 rounded-full border-4 border-white/10 border-t-[#CC1E4A]"
+              className="h-20 w-20 rounded-full border-4 border-white/10 border-t-[#E60012]"
             />
             <div className="text-center">
               <p className="font-racing text-2xl tracking-widest text-white mb-2">
@@ -1461,7 +1461,7 @@ export default function TabletPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
-                  className="font-racing text-2xl tracking-widest text-[#CC1E4A] mb-4"
+                  className="font-racing text-2xl tracking-widest text-[#E60012] mb-4"
                 >
                   GRACIAS, {session.customerName.toUpperCase()}
                 </motion.p>

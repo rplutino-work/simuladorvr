@@ -23,7 +23,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#121F45",
+  themeColor: "#0A0A0C",
 };
 
 export default function TabletLayout({

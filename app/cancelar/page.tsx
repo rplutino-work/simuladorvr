@@ -126,9 +126,9 @@ function CancelContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#121F45] flex flex-col">
+    <div className="min-h-screen bg-[#0A0A0C] flex flex-col">
       {/* Header */}
-      <header className="bg-[#121F45] border-b border-white/10 px-6 py-3">
+      <header className="bg-[#0A0A0C] border-b border-white/10 px-6 py-3">
         <Link href="/" className="flex items-center gap-2 w-fit">
           <Image
             src="/race-room-logo.png"
@@ -151,7 +151,7 @@ function CancelContent() {
               exit={{ opacity: 0 }}
               className="text-center"
             >
-              <div className="w-12 h-12 border-4 border-[#CC1E4A]/30 border-t-[#CC1E4A] rounded-full animate-spin mx-auto mb-4" />
+              <div className="w-12 h-12 border-4 border-[#E60012]/30 border-t-[#E60012] rounded-full animate-spin mx-auto mb-4" />
               <p className="text-white/60 font-condensed text-lg tracking-widest uppercase">
                 Cargando tu reserva...
               </p>
@@ -165,7 +165,7 @@ function CancelContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="max-w-md w-full bg-[#121F45] border border-[#CC1E4A]/30 rounded-2xl p-8 text-center"
+              className="max-w-md w-full bg-[#0A0A0C] border border-[#E60012]/30 rounded-2xl p-8 text-center"
             >
               <div className="text-5xl mb-4">⚠️</div>
               <h2 className="font-racing text-2xl text-white tracking-widest mb-3">
@@ -174,7 +174,7 @@ function CancelContent() {
               <p className="text-white/60 font-condensed mb-6">{errorMsg}</p>
               <Link
                 href="/"
-                className="inline-block px-6 py-3 bg-[#CC1E4A] text-white font-racing tracking-widest rounded-lg hover:bg-[#c0001a] transition-colors"
+                className="inline-block px-6 py-3 bg-[#E60012] text-white font-racing tracking-widest rounded-lg hover:bg-[#c0001a] transition-colors"
               >
                 VOLVER AL INICIO
               </Link>
@@ -190,9 +190,9 @@ function CancelContent() {
               exit={{ opacity: 0 }}
               className="max-w-lg w-full"
             >
-              <div className="bg-[#121F45] border border-white/10 rounded-2xl overflow-hidden">
+              <div className="bg-[#0A0A0C] border border-white/10 rounded-2xl overflow-hidden">
                 {/* Top bar */}
-                <div className="bg-[#CC1E4A] px-6 py-4 text-center">
+                <div className="bg-[#E60012] px-6 py-4 text-center">
                   <h1 className="font-racing text-2xl md:text-3xl tracking-widest text-white">
                     CANCELAR RESERVA
                   </h1>
@@ -200,7 +200,7 @@ function CancelContent() {
 
                 <div className="p-6 md:p-8">
                   {/* Booking details */}
-                  <div className="bg-[#121F45] border border-white/10 rounded-xl p-5 mb-6">
+                  <div className="bg-[#0A0A0C] border border-white/10 rounded-xl p-5 mb-6">
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {data.booking.code && (
                         <>
@@ -249,7 +249,7 @@ function CancelContent() {
                   ) : (
                     <>
                       {/* Refund info */}
-                      <div className="bg-[#121F45] border border-white/10 rounded-xl p-4 mb-6">
+                      <div className="bg-[#0A0A0C] border border-white/10 rounded-xl p-4 mb-6">
                         {data.cancelMode === "AUTOMATIC" ? (
                           <p className="text-white/60 font-condensed text-sm tracking-wide text-center">
                             💳 El reembolso se procesará automáticamente en{" "}
@@ -270,7 +270,7 @@ function CancelContent() {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={handleCancel}
-                        className="w-full py-4 bg-[#CC1E4A] hover:bg-[#c0001a] text-white font-racing text-xl tracking-widest rounded-xl transition-colors"
+                        className="w-full py-4 bg-[#E60012] hover:bg-[#c0001a] text-white font-racing text-xl tracking-widest rounded-xl transition-colors"
                       >
                         CONFIRMAR CANCELACIÓN
                       </motion.button>
@@ -303,7 +303,7 @@ function CancelContent() {
               exit={{ opacity: 0 }}
               className="text-center"
             >
-              <div className="w-12 h-12 border-4 border-[#CC1E4A]/30 border-t-[#CC1E4A] rounded-full animate-spin mx-auto mb-4" />
+              <div className="w-12 h-12 border-4 border-[#E60012]/30 border-t-[#E60012] rounded-full animate-spin mx-auto mb-4" />
               <p className="text-white/60 font-condensed text-lg tracking-widest uppercase">
                 Procesando cancelación...
               </p>
@@ -316,7 +316,7 @@ function CancelContent() {
               key="cancelled-auto"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="max-w-md w-full bg-[#121F45] border border-green-500/30 rounded-2xl overflow-hidden text-center"
+              className="max-w-md w-full bg-[#0A0A0C] border border-green-500/30 rounded-2xl overflow-hidden text-center"
             >
               <div className="bg-green-700 px-6 py-4">
                 <h2 className="font-racing text-2xl tracking-widest text-white">
@@ -334,7 +334,7 @@ function CancelContent() {
                 </p>
                 <Link
                   href="/"
-                  className="inline-block px-8 py-3 bg-[#CC1E4A] text-white font-racing tracking-widest rounded-xl hover:bg-[#c0001a] transition-colors"
+                  className="inline-block px-8 py-3 bg-[#E60012] text-white font-racing tracking-widest rounded-xl hover:bg-[#c0001a] transition-colors"
                 >
                   VOLVER AL INICIO
                 </Link>
@@ -348,9 +348,9 @@ function CancelContent() {
               key="cancelled-manual"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="max-w-md w-full bg-[#121F45] border border-white/10 rounded-2xl overflow-hidden text-center"
+              className="max-w-md w-full bg-[#0A0A0C] border border-white/10 rounded-2xl overflow-hidden text-center"
             >
-              <div className="bg-[#CC1E4A] px-6 py-4">
+              <div className="bg-[#E60012] px-6 py-4">
                 <h2 className="font-racing text-2xl tracking-widest text-white">
                   RESERVA CANCELADA
                 </h2>
@@ -395,7 +395,7 @@ function CancelContent() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#121F45] border-t border-white/10 px-6 py-4 text-center">
+      <footer className="bg-[#0A0A0C] border-t border-white/10 px-6 py-4 text-center">
         <p className="text-white/20 font-condensed text-xs tracking-widest uppercase">
           © {new Date().getFullYear()} Simulador VR
         </p>
@@ -408,8 +408,8 @@ export default function CancelPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#121F45] flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-[#CC1E4A]/30 border-t-[#CC1E4A] rounded-full animate-spin" />
+        <div className="min-h-screen bg-[#0A0A0C] flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-[#E60012]/30 border-t-[#E60012] rounded-full animate-spin" />
         </div>
       }
     >

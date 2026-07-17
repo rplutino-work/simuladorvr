@@ -6,8 +6,8 @@
   "scope": "/tablet/",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#121F45",
-  "theme_color": "#121F45",
+  "background_color": "#0A0A0C",
+  "theme_color": "#0A0A0C",
   "categories": ["games", "entertainment"],
   "icons": [
     {

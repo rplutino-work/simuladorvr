@@ -3,17 +3,17 @@
 /* ── Racing color palette ──────────────────────────────────────────── */
 :root {
   /* Legacy palette — kept for fallback during migration */
-  --racing-red:       #CC1E4A;
-  --racing-dark-red:  #223971;
-  --racing-black:     #121F45;
-  --racing-navy:      #121F45;
-  --racing-blue:      #223971;
+  --racing-red:       #E60012;
+  --racing-dark-red:  #241016;
+  --racing-black:     #0A0A0C;
+  --racing-navy:      #0A0A0C;
+  --racing-blue:      #241016;
 
   /* Race Room brand — official from logo guidelines */
-  --rr-navy-deep:     #121F45;  /* main dark background */
-  --rr-blue:          #223971;  /* royal blue accent */
-  --rr-red:           #CC1E4A;  /* primary CTA / accent */
-  --rr-yellow:        #FFC906;  /* highlight / pixel-dissolve */
+  --rr-navy-deep:     #0A0A0C;  /* main dark background */
+  --rr-blue:          #241016;  /* royal blue accent */
+  --rr-red:           #E60012;  /* primary CTA / accent */
+  --rr-yellow:        #FFFFFF;  /* highlight / pixel-dissolve */
 
   --background: #f8fafc;
   --foreground: #0f172a;

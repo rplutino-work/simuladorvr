@@ -24,7 +24,7 @@ function RacingLines() {
       {[...Array(6)].map((_, i) => (
         <motion.div
           key={i}
-          className="absolute h-px bg-gradient-to-r from-transparent via-[#CC1E4A] to-transparent opacity-40"
+          className="absolute h-px bg-gradient-to-r from-transparent via-[#E60012] to-transparent opacity-40"
           style={{ top: `${15 + i * 14}%`, left: 0, right: 0 }}
           initial={{ x: "-100%" }}
           animate={{ x: "200%" }}
@@ -221,7 +221,7 @@ export default function TVPage() {
   }, []);
 
   return (
-    <div className="fixed inset-0 overflow-hidden select-none bg-[#121F45]">
+    <div className="fixed inset-0 overflow-hidden select-none bg-[#0A0A0C]">
       <RacingLines />
 
       <AnimatePresence mode="wait">
@@ -257,7 +257,7 @@ export default function TVPage() {
                 width={512}
                 height={512}
                 priority
-                className="h-48 md:h-64 w-auto mx-auto drop-shadow-[0_0_60px_rgba(204,30,74,0.4)]"
+                className="h-48 md:h-64 w-auto mx-auto drop-shadow-[0_0_60px_rgba(230,0,18,0.4)]"
               />
             </motion.div>
 
@@ -283,7 +283,7 @@ export default function TVPage() {
             exit={{ opacity: 0, scale: 1.05 }}
           >
             <div className="flex flex-col items-center text-center px-8">
-              <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-lg bg-[#CC1E4A] shadow-[0_0_40px_rgba(204,30,74,0.6)]">
+              <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-lg bg-[#E60012] shadow-[0_0_40px_rgba(230,0,18,0.6)]">
                 <span className="font-racing text-4xl text-white">V</span>
               </div>
 
@@ -292,7 +292,7 @@ export default function TVPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="font-racing text-3xl text-[#CC1E4A] tracking-wider mb-6"
+                  className="font-racing text-3xl text-[#E60012] tracking-wider mb-6"
                 >
                   BIENVENIDO, {session.customerName.toUpperCase()}
                 </motion.p>
@@ -310,7 +310,7 @@ export default function TVPage() {
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                className="my-6 h-12 w-12 rounded-full border-4 border-white/10 border-t-[#CC1E4A]"
+                className="my-6 h-12 w-12 rounded-full border-4 border-white/10 border-t-[#E60012]"
               />
 
               <motion.p
@@ -378,7 +378,7 @@ export default function TVPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="font-racing text-2xl tracking-widest text-[#CC1E4A] mb-4"
+              className="font-racing text-2xl tracking-widest text-[#E60012] mb-4"
             >
               ¡GRACIAS POR CORRER CON NOSOTROS!
             </motion.p>
