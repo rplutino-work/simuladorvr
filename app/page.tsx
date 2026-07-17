@@ -1,9 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import { ChevronRight, Zap, Shield, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronRight, Zap, Shield, Clock, Menu, X } from "lucide-react";
+
+const NAV_LINKS = [
+  { label: "Inicio", href: "#top" },
+  { label: "Cómo funciona", href: "#como-funciona" },
+  { label: "Beneficios", href: "#beneficios" },
+];
 
 // ── Animation helpers ───────────────────────────────────────────────
 const fadeUp = (delay = 0) => ({
@@ -19,38 +26,93 @@ const fadeIn = (delay = 0) => ({
 });
 
 export default function LandingPage() {
-  return (
-    <main className="min-h-screen bg-[#0A0A0C] text-white overflow-x-hidden">
+  const [menuOpen, setMenuOpen] = useState(false);
 
-      {/* ── Header ──────────────────────────────────────────────────── */}
+  return (
+    <main id="top" className="min-h-screen bg-[#0A0A0C] text-white overflow-x-hidden">
+
+      {/* ── Header — floating glass bar ─────────────────────────────── */}
       <motion.header
         {...fadeIn(0)}
-        className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0A0A0C]/90 backdrop-blur-md"
+        className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4"
       >
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <Image
-              src="/race-room-logo.png"
-              alt="Race Room"
-              width={512}
-              height={512}
-              priority
-              className="h-12 w-auto drop-shadow-[0_0_12px_rgba(230,0,18,0.4)]"
-            />
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <Link href="/reserva">
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                className="font-condensed font-bold tracking-widest uppercase text-xs bg-[#E60012] hover:bg-[#ff1a2b] text-white px-5 py-2.5 rounded shadow-[0_0_16px_rgba(230,0,18,0.4)] transition-colors"
-              >
-                RESERVAR
-              </motion.button>
+        <div className="container mx-auto">
+          <div className="flex h-14 items-center justify-between rounded-2xl border border-white/10 bg-[#0E0E12]/80 px-3 shadow-[0_10px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:px-5">
+            {/* Logo */}
+            <Link href="/" className="flex shrink-0 items-center">
+              <Image
+                src="/race-room-logo.png"
+                alt="Race Room"
+                width={512}
+                height={512}
+                priority
+                className="h-10 w-auto drop-shadow-[0_0_14px_rgba(230,0,18,0.45)]"
+              />
             </Link>
+
+            {/* Center nav (desktop) */}
+            <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
+              {NAV_LINKS.map((n) => (
+                <a
+                  key={n.href}
+                  href={n.href}
+                  className="group relative px-4 py-2 font-condensed text-xs font-semibold uppercase tracking-widest text-white/60 transition-colors hover:text-white"
+                >
+                  {n.label}
+                  <span className="absolute inset-x-4 -bottom-0.5 h-px origin-left scale-x-0 bg-[#E60012] transition-transform duration-300 group-hover:scale-x-100" />
+                </a>
+              ))}
+            </nav>
+
+            {/* Right: CTA + mobile toggle */}
+            <div className="flex items-center gap-2">
+              <Link href="/reserva" className="hidden sm:block">
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="rounded-full bg-[#E60012] px-5 py-2.5 font-condensed text-xs font-bold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(230,0,18,0.5)] transition-colors hover:bg-[#ff1a2b]"
+                >
+                  Reservar
+                </motion.button>
+              </Link>
+              <button
+                aria-label="Menú"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-white/80 transition-colors hover:bg-white/5 md:hidden"
+              >
+                {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
+
+          {/* Mobile menu */}
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#0E0E12]/95 p-2 backdrop-blur-xl md:hidden"
+              >
+                {NAV_LINKS.map((n) => (
+                  <a
+                    key={n.href}
+                    href={n.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="block rounded-lg px-4 py-3 font-condensed text-sm font-semibold uppercase tracking-widest text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    {n.label}
+                  </a>
+                ))}
+                <Link href="/reserva" onClick={() => setMenuOpen(false)} className="mt-1 block">
+                  <div className="rounded-xl bg-[#E60012] px-5 py-3 text-center font-condensed text-xs font-bold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(230,0,18,0.5)]">
+                    Reservar
+                  </div>
+                </Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.header>
 
@@ -202,7 +264,7 @@ export default function LandingPage() {
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
       {/* ── Cómo funciona ───────────────────────────────────────────── */}
-      <section id="como-funciona" className="bg-[#0A0A0C] py-16 sm:py-24">
+      <section id="como-funciona" className="scroll-mt-24 bg-[#0A0A0C] py-16 sm:py-24">
         <div className="container mx-auto px-4 sm:px-6">
 
           <motion.div
@@ -281,7 +343,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features row ────────────────────────────────────────────── */}
-      <section className="bg-[#0A0A0C] border-t border-white/5 py-12">
+      <section id="beneficios" className="scroll-mt-24 bg-[#0A0A0C] border-t border-white/5 py-12">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
