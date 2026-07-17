@@ -24,7 +24,7 @@ export async function sendBookingConfirmationEmail(
   const from =
     fromOverride ??
     process.env.EMAIL_FROM ??
-    "Simulador VR <onboarding@resend.dev>";
+    "Race Room <onboarding@resend.dev>";
 
   const cancelSection = cancelUrl
     ? `

@@ -1,4 +1,4 @@
-# Simulador VR - Racing Simulator Booking System
+# Race Room - Racing Simulator Booking System
 
 MVP de sistema de reservas para simulador de carreras. Next.js 14+, TypeScript, Prisma, NextAuth, MercadoPago y Resend.
 

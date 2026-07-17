@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.simuladorvr.tablet",
-  appName: "SimuladorVR",
+  appName: "Race Room",
   // We point the WebView directly to the live Vercel deployment.
   // This way the tablet app always has the latest version without rebuilding.
   webDir: "public", // fallback (not used when server.url is set)

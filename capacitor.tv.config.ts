@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.simuladorvr.tv",
-  appName: "SimuladorVR TV",
+  appName: "Race Room TV",
   webDir: "public",
   server: {
     url: "https://simuladorvr.vercel.app/tv/1",

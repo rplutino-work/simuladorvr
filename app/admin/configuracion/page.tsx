@@ -431,7 +431,7 @@ export default function ConfiguracionPage() {
                 <Input
                   id="emailFrom"
                   type="text"
-                  placeholder="Simulador VR <noreply@tudominio.com>"
+                  placeholder="Race Room <noreply@tudominio.com>"
                   value={emailForm.emailFrom}
                   onChange={(e) =>
                     setEmailForm({ ...emailForm, emailFrom: e.target.value })

@@ -1,4 +1,4 @@
-// Simulador VR - Racing Simulator Booking System
+// Race Room - Racing Simulator Booking System
 // Database: PostgreSQL (Neon compatible)
 
 generator client {

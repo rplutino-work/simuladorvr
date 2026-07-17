@@ -755,7 +755,7 @@ function ReservaContent() {
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <footer className="bg-[#0A0A0C] border-t border-white/5 px-6 py-4 text-center">
         <p className="text-white/15 font-condensed text-xs tracking-widest uppercase">
-          © {new Date().getFullYear()} Simulador VR
+          © {new Date().getFullYear()} Race Room
         </p>
       </footer>
     </div>
