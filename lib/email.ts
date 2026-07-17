@@ -52,13 +52,13 @@ export async function sendBookingConfirmationEmail(
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8" /></head>
-<body style="margin:0;padding:0;background:#121F45;font-family:system-ui,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#121F45;padding:40px 20px;">
+<body style="margin:0;padding:0;background:#0A0A0C;font-family:system-ui,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0A0C;padding:40px 20px;">
     <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#121F45;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#0A0A0C;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);">
         <!-- Header -->
         <tr>
-          <td style="background:#CC1E4A;padding:28px 40px;text-align:center;">
+          <td style="background:#E60012;padding:28px 40px;text-align:center;">
             <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:900;letter-spacing:4px;text-transform:uppercase;">🏎️ RACE ROOM</h1>
             <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;letter-spacing:2px;text-transform:uppercase;">Reserva Confirmada</p>
           </td>
@@ -69,7 +69,7 @@ export async function sendBookingConfirmationEmail(
             <p style="margin:0 0 24px;color:rgba(255,255,255,0.7);font-size:15px;">¡Tu sesión está confirmada! Presentá este código al llegar al simulador.</p>
 
             <!-- Code box -->
-            <div style="background:#121F45;border:2px solid #CC1E4A;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;box-shadow:0 0 20px rgba(204,30,74,0.2);">
+            <div style="background:#0A0A0C;border:2px solid #E60012;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;box-shadow:0 0 20px rgba(230,0,18,0.2);">
               <p style="margin:0 0 8px;color:rgba(255,255,255,0.4);font-size:12px;text-transform:uppercase;letter-spacing:3px;">Código de acceso</p>
               <p style="margin:0;font-family:monospace;font-size:44px;font-weight:900;letter-spacing:14px;color:#ffffff;">${code}</p>
             </div>
@@ -110,8 +110,8 @@ export async function sendBookingConfirmationEmail(
         ${cancelSection}
         <!-- Footer -->
         <tr>
-          <td style="background:#121F45;padding:20px 40px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);">
-            <p style="margin:0;color:rgba(255,255,255,0.2);font-size:11px;">© ${new Date().getFullYear()} Simulador VR · Email automático, no respondas a este mensaje.</p>
+          <td style="background:#0A0A0C;padding:20px 40px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);">
+            <p style="margin:0;color:rgba(255,255,255,0.2);font-size:11px;">© ${new Date().getFullYear()} Race Room · Email automático, no respondas a este mensaje.</p>
           </td>
         </tr>
       </table>
