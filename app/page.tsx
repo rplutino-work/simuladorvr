@@ -66,11 +66,11 @@ export default function LandingPage() {
 
             {/* Right: CTA + mobile toggle */}
             <div className="flex items-center gap-2">
-              <Link href="/reserva" className="hidden sm:block">
+              <Link href="/reserva">
                 <motion.button
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
-                  className="rounded-full bg-[#E60012] px-5 py-2.5 font-condensed text-xs font-bold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(230,0,18,0.5)] transition-colors hover:bg-[#ff1a2b]"
+                  className="rounded-full bg-[#E60012] px-4 py-2 font-condensed text-[11px] font-bold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(230,0,18,0.5)] transition-colors hover:bg-[#ff1a2b] sm:px-5 sm:py-2.5 sm:text-xs"
                 >
                   Reservar
                 </motion.button>
@@ -78,7 +78,7 @@ export default function LandingPage() {
               <button
                 aria-label="Menú"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-white/80 transition-colors hover:bg-white/5 md:hidden"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80 transition-colors hover:bg-white/5 md:hidden"
               >
                 {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
