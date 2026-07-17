@@ -33,8 +33,8 @@ export default function LandingPage() {
             <Image
               src="/race-room-logo.png"
               alt="Race Room"
-              width={839}
-              height={306}
+              width={512}
+              height={512}
               priority
               className="h-12 w-auto drop-shadow-[0_0_12px_rgba(204,30,74,0.4)]"
             />
@@ -357,8 +357,8 @@ export default function LandingPage() {
             <Image
               src="/race-room-logo.png"
               alt="Race Room"
-              width={839}
-              height={306}
+              width={512}
+              height={512}
               className="h-9 w-auto"
             />
           </Link>

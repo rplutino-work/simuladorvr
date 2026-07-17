@@ -254,8 +254,8 @@ export default function TVPage() {
               <Image
                 src="/race-room-logo.png"
                 alt="Race Room"
-                width={839}
-                height={306}
+                width={512}
+                height={512}
                 priority
                 className="h-48 md:h-64 w-auto mx-auto drop-shadow-[0_0_60px_rgba(204,30,74,0.4)]"
               />

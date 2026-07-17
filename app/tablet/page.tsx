@@ -47,8 +47,8 @@ export default function TabletSelectorPage() {
         <Image
           src="/race-room-logo.png"
           alt="Race Room"
-          width={839}
-          height={306}
+          width={512}
+          height={512}
           priority
           className="h-32 w-auto mx-auto drop-shadow-[0_0_30px_rgba(204,30,74,0.35)]"
         />

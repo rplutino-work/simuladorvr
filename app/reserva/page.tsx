@@ -207,8 +207,8 @@ function ReservaContent() {
             <Image
               src="/race-room-logo.png"
               alt="Race Room"
-              width={839}
-              height={306}
+              width={512}
+              height={512}
               className="h-10 w-auto"
             />
           </Link>
