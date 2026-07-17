@@ -163,6 +163,7 @@ export default function TabletPage() {
   const [state, setState] = useState<State>("screensaver");
   const [codeInput, setCodeInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [puestoName, setPuestoName] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
   const [totalMs, setTotalMs] = useState(0);
@@ -310,6 +311,7 @@ export default function TabletPage() {
     fetch(`/api/tablet/${puestoId}/status`)
       .then((r) => r.json())
       .then((data) => {
+        if (data.puestoName) setPuestoName(data.puestoName);
         if (data.session) {
           setSession(data.session);
           startCountdown(data.session.endTime, data.session.duration);
@@ -632,11 +634,11 @@ export default function TabletPage() {
           >
             <RacingLines />
             <div className="relative z-10 flex flex-col items-center gap-6 px-6 w-full">
-              {/* Logo — Race Room official */}
+              {/* Logo — Race Room official (square badge) */}
               <motion.div
                 animate={{ scale: [1, 1.03, 1] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="w-full max-w-md sm:max-w-lg"
+                className="w-44 sm:w-56"
               >
                 <Image
                   src="/race-room-logo.png"
@@ -650,7 +652,7 @@ export default function TabletPage() {
 
               {/* Puesto name */}
               <p className="font-condensed text-base tracking-[0.4em] uppercase text-white/60">
-                {puestoId.replace(/-/g, " ").toUpperCase()}
+                {puestoName || "Race Room"}
               </p>
 
               {/* Action buttons */}
