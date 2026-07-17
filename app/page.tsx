@@ -41,11 +41,6 @@ export default function LandingPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <Link href="/admin/login">
-              <button className="hidden sm:block text-xs font-condensed font-semibold tracking-widest uppercase text-white/50 hover:text-white/80 transition px-3 py-2">
-                Admin
-              </button>
-            </Link>
             <Link href="/reserva">
               <motion.button
                 whileHover={{ scale: 1.04 }}
@@ -61,18 +56,45 @@ export default function LandingPage() {
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background image */}
-        <div className="absolute inset-0 z-0">
-          <Image
-            src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1920&q=80"
-            alt="Racing cars on track"
-            fill
-            className="object-cover object-center"
-            priority
-            unoptimized
+        {/* Animated branded background — matches the neon logo, no stock photo */}
+        <div className="absolute inset-0 z-0 overflow-hidden bg-[#0A0A0C]">
+          {/* Pulsing red glow orbs */}
+          <motion.div
+            className="absolute -top-1/4 -left-1/4 h-[65vh] w-[65vh] rounded-full bg-[#E60012] blur-[130px]"
+            animate={{ scale: [1, 1.18, 1], opacity: [0.18, 0.32, 0.18] }}
+            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
           />
-          {/* Dark gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0C]/80 via-[#0A0A0C]/70 to-[#0A0A0C]" />
+          <motion.div
+            className="absolute -bottom-1/3 -right-1/4 h-[60vh] w-[60vh] rounded-full bg-[#E60012] blur-[140px]"
+            animate={{ scale: [1.1, 1, 1.1], opacity: [0.12, 0.26, 0.12] }}
+            transition={{ duration: 11, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+          />
+          {/* Racing speed lines */}
+          {[...Array(7)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute h-px bg-gradient-to-r from-transparent via-[#E60012] to-transparent"
+              style={{ top: `${11 + i * 12}%`, left: 0, right: 0, opacity: 0.25 }}
+              initial={{ x: "-100%" }}
+              animate={{ x: "200%" }}
+              transition={{ duration: 3.5 + i * 0.6, repeat: Infinity, delay: i * 0.4, ease: "linear" }}
+            />
+          ))}
+          {/* Subtle tech grid */}
+          <div
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage:
+                "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+              backgroundSize: "48px 48px",
+            }}
+          />
+          {/* Vignette + fade to the page black */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0C]/30 via-transparent to-[#0A0A0C]" />
+          <div
+            className="absolute inset-0"
+            style={{ background: "radial-gradient(ellipse at center, transparent 35%, #0A0A0C 100%)" }}
+          />
         </div>
 
         {/* Hero content */}
@@ -365,12 +387,6 @@ export default function LandingPage() {
           <p className="font-barlow text-white/30 text-xs">
             © {new Date().getFullYear()} Race Room · Todos los derechos reservados
           </p>
-          <Link
-            href="/admin/login"
-            className="font-condensed text-xs tracking-widest uppercase text-white/30 hover:text-white/60 transition"
-          >
-            Acceso Admin
-          </Link>
         </div>
       </footer>
     </main>
