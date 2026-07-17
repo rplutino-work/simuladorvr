@@ -45,12 +45,27 @@ public class MainActivity extends BridgeActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setImmersive();
 
+        // Kiosk: the moment the system bars reappear (edge swipe, dialog, etc.)
+        // re-hide them immediately, so the Android toolbar is never left visible.
+        getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(visibility -> {
+            if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0
+                || (visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+                getWindow().getDecorView().postDelayed(this::setImmersive, 300);
+            }
+        });
+
         // Keep CPU alive even when screen is off so polling continues
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         cpuWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SimuladorVR::CPU");
         cpuWakeLock.acquire();
 
         getBridge().getWebView().addJavascriptInterface(new TVBridge(), "NativeBridge");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setImmersive();
     }
 
     @Override
