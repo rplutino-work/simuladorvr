@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCachedSettings } from "@/lib/cache";
 
 // A FINISHED session is reported as `recentlyFinished` for this long after
 // it ended, so the TV (whose WebView may have been killed while on HDMI)
@@ -21,11 +22,18 @@ export async function GET(
   const [booking, puesto, settings] = await Promise.all([
     prisma.booking.findFirst({
       where: { puestoId, status: "ACTIVE" },
-      include: { puesto: true },
       orderBy: { startTime: "desc" },
+      select: {
+        id: true,
+        code: true,
+        customerName: true,
+        endTime: true,
+        duration: true,
+        puesto: { select: { name: true } },
+      },
     }),
     prisma.puesto.findUnique({ where: { id: puestoId }, select: { active: true, name: true } }),
-    prisma.businessSettings.findFirst({ select: { openHour: true, closeHour: true } }),
+    getCachedSettings(), // cached — no Postgres hit on most polls
   ]);
 
   const now = new Date();

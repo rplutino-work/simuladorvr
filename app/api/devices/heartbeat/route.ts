@@ -23,23 +23,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // Ignore pings for unknown puestos so a stale/misconfigured kiosk can't
-  // create orphan rows (there is no FK-less insert path here).
-  const puesto = await prisma.puesto.findUnique({
-    where: { id: puestoId },
-    select: { id: true },
-  });
-  if (!puesto) {
-    return NextResponse.json({ error: "Unknown puesto" }, { status: 404 });
-  }
-
   const userAgent = req.headers.get("user-agent")?.slice(0, 255) ?? null;
 
-  await prisma.deviceHeartbeat.upsert({
-    where: { puestoId_deviceType: { puestoId, deviceType } },
-    create: { puestoId, deviceType, userAgent },
-    update: { lastSeenAt: new Date(), userAgent },
-  });
+  // Single query: the upsert's FK to Puesto rejects unknown puestos (P2003),
+  // so we don't need a separate existence check.
+  try {
+    await prisma.deviceHeartbeat.upsert({
+      where: { puestoId_deviceType: { puestoId, deviceType } },
+      create: { puestoId, deviceType, userAgent },
+      update: { lastSeenAt: new Date(), userAgent },
+    });
+  } catch (e) {
+    if (e && typeof e === "object" && (e as { code?: string }).code === "P2003") {
+      return NextResponse.json({ error: "Unknown puesto" }, { status: 404 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ ok: true });
 }

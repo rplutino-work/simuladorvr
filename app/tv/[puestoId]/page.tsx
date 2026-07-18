@@ -77,6 +77,9 @@ export default function TVPage() {
   const [state, setState] = useState<TVState>("idle");
   const [session, setSession] = useState<SessionData>(null);
   const [puestoName, setPuestoName] = useState("");
+  // Poll fast during business hours, slow (once a minute) when the screen is
+  // off — so the DB isn't hit every 3s all night and Neon can auto-suspend.
+  const [pollMs, setPollMs] = useState(POLL_MS);
   const prevSessionRef = useRef<string | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenStateRef = useRef<boolean>(true);
@@ -110,6 +113,7 @@ export default function TVPage() {
 
       // TV power: off if outside business hours or puesto disabled
       const shouldBeOn = data.screenOn !== false;
+      setPollMs(shouldBeOn ? POLL_MS : 60000);
 
       if (!shouldBeOn && screenStateRef.current) {
         screenStateRef.current = false;
@@ -190,9 +194,9 @@ export default function TVPage() {
   useEffect(() => {
     if (!resolvedId) return;
     poll();
-    const interval = setInterval(poll, POLL_MS);
+    const interval = setInterval(poll, pollMs);
     return () => clearInterval(interval);
-  }, [poll, resolvedId]);
+  }, [poll, resolvedId, pollMs]);
 
   // ── Device heartbeat (liveness ping for admin) ──────────────────────────
   // Native path (APK): hand the id to the native bridge, which beats from a

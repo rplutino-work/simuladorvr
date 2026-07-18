@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -46,5 +47,6 @@ export async function POST(req: NextRequest) {
     );
   }
   const puesto = await prisma.puesto.create({ data: parsed.data });
+  updateTag("puestos");
   return NextResponse.json(puesto);
 }

@@ -83,12 +83,31 @@ function overlaps(
   return existingStart < newEnd && existingEnd > newStart;
 }
 
+type MinBooking = { startTime: Date | null; endTime: Date | null };
+
+/** Pure slot-availability computation (no DB) — shared by single-puesto and grid. */
+function computeSlots(
+  slots: Date[],
+  bookings: MinBooking[],
+  marginMs: number,
+  effectiveDuration: number,
+  closeTime: Date
+): SlotInfo[] {
+  return slots.map((slotStart) => {
+    const slotEnd = new Date(slotStart.getTime() + effectiveDuration * 60 * 1000);
+    if (slotEnd > closeTime) return { startTime: slotStart, available: false };
+    const isOccupied = bookings.some((b) => {
+      if (!b.startTime || !b.endTime) return false;
+      const exStart = new Date(b.startTime.getTime() - marginMs);
+      const exEnd = new Date(b.endTime.getTime() + marginMs);
+      return overlaps(exStart, exEnd, slotStart, slotEnd);
+    });
+    return { startTime: slotStart, available: !isOccupied };
+  });
+}
+
 /**
  * Get availability for a puesto on a given date.
- * - `minTime`: slots before this are excluded (today filter)
- * - `durationMinutes`: the intended booking duration — used to correctly
- *   determine if a slot has enough room before the next booking. Defaults
- *   to the configured slotInterval (minimum unit check).
  */
 export async function getAvailability(
   dateStr: string,
@@ -98,7 +117,6 @@ export async function getAvailability(
 ): Promise<SlotInfo[]> {
   const settings = await getBusinessSettings();
   const date = new Date(dateStr);
-  // Keep UTC midnight so setUTCHours in generateSlotsForDay works correctly
   date.setUTCHours(0, 0, 0, 0);
 
   const slots = generateSlotsForDay(
@@ -109,7 +127,6 @@ export async function getAvailability(
     minTime
   );
 
-  // Use a wide UTC window to catch all bookings for that calendar day
   const dayStart = new Date(date);
   dayStart.setUTCHours(0, 0, 0, 0);
   const dayEnd = new Date(date);
@@ -122,33 +139,15 @@ export async function getAvailability(
       startTime: { not: null, lt: dayEnd },
       endTime: { not: null, gt: dayStart },
     },
+    select: { startTime: true, endTime: true },
   });
 
   const marginMs = settings.negativeMarginMinutes * 60 * 1000;
-  // How long a session starting at this slot would last
   const effectiveDuration = durationMinutes ?? settings.slotInterval;
-
-  // Argentina close time for this day — no session may end after this
   const closeTime = new Date(date);
   closeTime.setUTCHours(settings.closeHour + AR_TZ_OFFSET_HOURS, 0, 0, 0);
 
-  return slots.map((slotStart) => {
-    // Slot end = start + the intended duration (not just the grid interval)
-    const slotEnd = new Date(slotStart.getTime() + effectiveDuration * 60 * 1000);
-
-    // Block if the session would end after the closing hour
-    if (slotEnd > closeTime) {
-      return { startTime: slotStart, available: false };
-    }
-
-    const isOccupied = bookings.some((b) => {
-      if (!b.startTime || !b.endTime) return false;
-      const exStart = new Date(b.startTime.getTime() - marginMs);
-      const exEnd = new Date(b.endTime.getTime() + marginMs);
-      return overlaps(exStart, exEnd, slotStart, slotEnd);
-    });
-    return { startTime: slotStart, available: !isOccupied };
-  });
+  return computeSlots(slots, bookings, marginMs, effectiveDuration, closeTime);
 }
 
 /**
@@ -221,13 +220,40 @@ export async function getAvailabilityForDay(
   const puestos = await prisma.puesto.findMany({
     where: { active: true },
     orderBy: { name: "asc" },
+    select: { id: true, name: true },
   });
-  const puestosWithSlots: DayAvailabilityPuesto[] = await Promise.all(
-    puestos.map(async (p) => ({
-      id: p.id,
-      name: p.name,
-      slots: await getAvailability(dateStr, p.id, minTime, durationMinutes),
-    }))
-  );
+
+  // ONE query for all puestos (was N+1: a settings read + a bookings read per
+  // puesto). Group the bookings in memory and compute each puesto's slots.
+  const dayStart = new Date(date);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setUTCHours(23, 59, 59, 999);
+  const allBookings = await prisma.booking.findMany({
+    where: {
+      puestoId: { in: puestos.map((p) => p.id) },
+      status: { in: ["PENDING", "PAID", "ACTIVE"] },
+      startTime: { not: null, lt: dayEnd },
+      endTime: { not: null, gt: dayStart },
+    },
+    select: { puestoId: true, startTime: true, endTime: true },
+  });
+  const byPuesto = new Map<string, MinBooking[]>();
+  for (const b of allBookings) {
+    const arr = byPuesto.get(b.puestoId) ?? [];
+    arr.push(b);
+    byPuesto.set(b.puestoId, arr);
+  }
+
+  const marginMs = settings.negativeMarginMinutes * 60 * 1000;
+  const effectiveDuration = durationMinutes ?? settings.slotInterval;
+  const closeTime = new Date(date);
+  closeTime.setUTCHours(settings.closeHour + AR_TZ_OFFSET_HOURS, 0, 0, 0);
+
+  const puestosWithSlots: DayAvailabilityPuesto[] = puestos.map((p) => ({
+    id: p.id,
+    name: p.name,
+    slots: computeSlots(slots, byPuesto.get(p.id) ?? [], marginMs, effectiveDuration, closeTime),
+  }));
   return { slots, puestos: puestosWithSlots };
 }

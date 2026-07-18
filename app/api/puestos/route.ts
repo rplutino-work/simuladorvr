@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getCachedActivePuestos } from "@/lib/cache";
 
 /**
  * GET /api/puestos
- * Returns active puestos for public booking
+ * Returns active puestos for public booking (cached — hit by every kiosk boot).
  */
 export async function GET() {
-  const puestos = await prisma.puesto.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
-  });
+  const puestos = await getCachedActivePuestos();
   return NextResponse.json(puestos);
 }

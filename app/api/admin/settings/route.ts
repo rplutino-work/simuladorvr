@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getBusinessSettings } from "@/lib/availability";
@@ -79,5 +80,6 @@ export async function PATCH(req: NextRequest) {
     where: { id: settings.id },
     data: parsed.data,
   });
+  updateTag("settings"); // refresh the cached reader used by the kiosks
   return NextResponse.json(updated);
 }

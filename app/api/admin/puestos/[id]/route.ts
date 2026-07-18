@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -39,6 +40,7 @@ export async function PATCH(
     where: { id },
     data: parsed.data,
   });
+  updateTag("puestos");
   return NextResponse.json(puesto);
 }
 
@@ -55,5 +57,6 @@ export async function DELETE(
   }
   const { id } = await params;
   await prisma.puesto.update({ where: { id }, data: { active: false } });
+  updateTag("puestos");
   return NextResponse.json({ ok: true });
 }

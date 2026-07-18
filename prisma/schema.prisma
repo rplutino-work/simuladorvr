@@ -139,6 +139,9 @@ model Booking {
   @@index([createdAt])
   @@index([startTime])
   @@index([puestoId, startTime])
+  @@index([puestoId, status]) // tablet/TV status: "active booking for this puesto?"
+  @@index([status, endTime]) // cron auto-finish: ACTIVE with endTime < now
+  @@index([status, createdAt]) // cron expire: PENDING older than 30 min
 }
 
 enum BookingStatus {
