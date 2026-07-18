@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isSlotAvailable } from "@/lib/availability";
 import { MercadoPagoConfig, Preference } from "mercadopago";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const TIERS = [30, 60, 120] as const;
 const MIN_USABLE_MINUTES = 10;
@@ -26,6 +27,13 @@ export async function POST(
 ) {
   try {
     const { puestoId } = await params;
+    const rl = await rateLimit(`direct:${clientIp(req)}:${puestoId}`, 15, 5 * 60 * 1000);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Demasiados intentos. Esperá un momento." },
+        { status: 429 }
+      );
+    }
     let body: { tier?: unknown; actualMinutes?: unknown };
     try {
       body = await req.json();

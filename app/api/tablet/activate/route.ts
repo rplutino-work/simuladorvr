@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isSlotAvailable } from "@/lib/availability";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/tablet/activate
@@ -22,6 +23,16 @@ export async function POST(req: NextRequest) {
 
     if (!code || !puestoId) {
       return NextResponse.json({ error: "Código y puesto requeridos" }, { status: 400 });
+    }
+
+    // Brute-forcing the 4-char code (probing valid codes to hijack sessions) is
+    // stopped here: max 15 attempts / 5 min per IP+puesto.
+    const rl = await rateLimit(`activate:${clientIp(req)}:${puestoId}`, 15, 5 * 60 * 1000);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Demasiados intentos. Esperá un momento e intentá de nuevo." },
+        { status: 429 }
+      );
     }
 
     const normalizedCode = String(code).toUpperCase().trim();

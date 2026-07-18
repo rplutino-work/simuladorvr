@@ -21,12 +21,18 @@ export async function PATCH(
     );
   }
 
+  const token = (body?.cancelToken as string | undefined) ?? null;
+
   const booking = await prisma.booking.findUnique({
     where: { id },
     include: { puesto: true },
   });
   if (!booking) {
     return NextResponse.json({ error: "Reserva no encontrada" }, { status: 404 });
+  }
+  // Ownership proof (same secret as cancellation).
+  if (!token || !booking.cancelToken || token !== booking.cancelToken) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   if (!["PENDING", "PAID"].includes(booking.status)) {
     return NextResponse.json(
@@ -45,6 +51,21 @@ export async function PATCH(
 
   const newStart = new Date(parsed.data.newStartTime);
   const newEnd = new Date(newStart.getTime() + booking.duration * 60 * 1000);
+
+  // Must be in the future and inside business hours (Argentina time).
+  if (newStart.getTime() < Date.now()) {
+    return NextResponse.json({ error: "El nuevo horario debe ser futuro" }, { status: 400 });
+  }
+  const AR_OFFSET = 3 * 60 * 60 * 1000;
+  const startHourAR = new Date(newStart.getTime() - AR_OFFSET).getUTCHours();
+  const endAR = new Date(newEnd.getTime() - AR_OFFSET);
+  const endHourAR = endAR.getUTCHours() + endAR.getUTCMinutes() / 60;
+  if (startHourAR < settings.openHour || endHourAR > settings.closeHour) {
+    return NextResponse.json(
+      { error: `El turno debe estar entre las ${settings.openHour} y las ${settings.closeHour} h.` },
+      { status: 400 }
+    );
+  }
 
   const available = await isSlotAvailable(
     booking.puestoId,

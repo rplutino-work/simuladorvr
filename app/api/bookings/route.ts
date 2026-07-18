@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { createBookingSchema } from "@/lib/validations/booking";
 import { isSlotAvailable } from "@/lib/availability";
 import { MercadoPagoConfig, Preference } from "mercadopago";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/bookings
@@ -10,6 +11,13 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
  */
 export async function POST(req: NextRequest) {
   try {
+    const rl = await rateLimit(`bookings:${clientIp(req)}`, 20, 10 * 60 * 1000);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Demasiadas reservas seguidas. Esperá un momento." },
+        { status: 429 }
+      );
+    }
     let body: unknown;
     try {
       body = await req.json();

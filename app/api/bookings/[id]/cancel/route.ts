@@ -11,12 +11,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+  const token = (body?.cancelToken as string | undefined) ?? null;
+
   const booking = await prisma.booking.findUnique({
     where: { id },
     include: { puesto: true },
   });
   if (!booking) {
     return NextResponse.json({ error: "Reserva no encontrada" }, { status: 404 });
+  }
+  // Proof of ownership: the cancelToken is the secret. Without it, a leaked
+  // bookingId must not let a stranger cancel someone else's reservation.
+  if (!token || !booking.cancelToken || token !== booking.cancelToken) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   if (booking.status === "CANCELLED") {
     return NextResponse.json({ error: "Ya está cancelada" }, { status: 400 });
