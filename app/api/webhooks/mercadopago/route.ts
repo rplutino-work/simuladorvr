@@ -1,18 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 
 /**
- * POST /api/webhooks/mercadopago
- * MercadoPago webhook for payment notifications
+ * Validates MercadoPago's `x-signature` HMAC. Only enforced when
+ * MERCADOPAGO_WEBHOOK_SECRET is configured (so an un-configured deploy keeps
+ * working); once set, forged/replayed notifications are rejected.
+ */
+function signatureValid(req: NextRequest, dataId: string): boolean {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  if (!secret) return true; // not configured yet — don't block
+  const sig = req.headers.get("x-signature");
+  const reqId = req.headers.get("x-request-id");
+  if (!sig || !reqId) return false;
+  const parts: Record<string, string> = {};
+  for (const p of sig.split(",")) {
+    const [k, v] = p.split("=");
+    if (k && v) parts[k.trim()] = v.trim();
+  }
+  const ts = parts["ts"];
+  const v1 = parts["v1"];
+  if (!ts || !v1) return false;
+  const manifest = `id:${dataId};request-id:${reqId};ts:${ts};`;
+  const hmac = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(v1));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * POST /api/webhooks/mercadopago — payment notifications from MercadoPago.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // MP sends different payloads - handle payment.created/updated
     const type = body.type ?? body.action;
     if (type !== "payment" && type !== "payment.created" && type !== "payment.updated") {
       return NextResponse.json({ ok: true });
@@ -21,6 +48,10 @@ export async function POST(req: NextRequest) {
     const paymentId = body.data?.id ?? body.id;
     if (!paymentId) {
       return NextResponse.json({ error: "Missing payment id" }, { status: 400 });
+    }
+
+    if (!signatureValid(req, String(paymentId))) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -40,6 +71,9 @@ export async function POST(req: NextRequest) {
     if (!mpPaymentId) {
       return NextResponse.json({ error: "Missing payment id" }, { status: 400 });
     }
+    const paidCents = mpPayment.transaction_amount
+      ? Math.round(mpPayment.transaction_amount * 100)
+      : 0;
 
     const externalRef = mpPayment.external_reference ?? mpPayment.metadata?.booking_id;
     if (!externalRef) {
@@ -47,99 +81,78 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Direct tablet purchase: "direct-{bookingId}" ──────────────────────
-    // The customer paid at the tablet without a pre-existing reservation.
-    // Activate the session immediately (no code, no email).
     if (externalRef.startsWith("direct-")) {
       const bookingId = externalRef.slice("direct-".length);
       if (!bookingId) {
         return NextResponse.json({ error: "Invalid direct reference" }, { status: 400 });
       }
 
-      const directBooking = await prisma.booking.findUnique({
-        where: { id: bookingId },
-      });
+      const directBooking = await prisma.booking.findUnique({ where: { id: bookingId } });
       if (!directBooking) {
         return NextResponse.json({ error: "Booking not found" }, { status: 404 });
       }
       if (directBooking.status === "ACTIVE" || directBooking.status === "FINISHED") {
         return NextResponse.json({ ok: true });
       }
+      // Underpaid → don't activate (never give a session for less than its price).
+      if (paidCents > 0 && paidCents < directBooking.price) {
+        return NextResponse.json({ ok: true, underpaid: true });
+      }
+      // Paid over a cancelled/expired booking → orphan payment; the cron
+      // reconciler / admin handles the refund. Do not silently activate.
       if (directBooking.status === "CANCELLED" || directBooking.status === "EXPIRED") {
-        // Customer cancelled in the tablet but the payment went through anyway
-        // (edge case). We do NOT auto-activate — leave it for manual handling.
         return NextResponse.json({ ok: true, wasCancelled: true });
       }
 
-      // Recalculate times from this moment so the customer gets the full duration
-      // they paid for, even if the webhook arrived seconds/minutes after payment.
       const now = new Date();
       const newEnd = new Date(now.getTime() + directBooking.duration * 60 * 1000);
-
       await prisma.$transaction(async (tx) => {
         await tx.booking.update({
           where: { id: bookingId },
-          data: {
-            status: "ACTIVE",
-            startTime: now,
-            endTime: newEnd,
-            paymentId: mpPaymentId,
-          },
+          data: { status: "ACTIVE", startTime: now, endTime: newEnd, paymentId: mpPaymentId },
         });
         await tx.payment.upsert({
           where: { bookingId },
-          create: {
-            bookingId,
-            mpPaymentId,
-            amount: mpPayment.transaction_amount
-              ? Math.round(mpPayment.transaction_amount * 100)
-              : directBooking.price,
-            status: "approved",
-          },
-          update: { status: "approved" },
+          create: { bookingId, mpPaymentId, amount: paidCents || directBooking.price, status: "approved" },
+          update: { status: "approved", mpPaymentId },
         });
       });
-
       return NextResponse.json({ ok: true });
     }
 
     // ── Extension payment: "ext-{bookingId}-{additionalMinutes}" ──────────
     if (externalRef.startsWith("ext-")) {
       const parts = externalRef.split("-");
-      // format: ext-{bookingId}-{additionalMinutes}
       const additionalMinutes = parseInt(parts[parts.length - 1], 10);
       const bookingId = parts.slice(1, -1).join("-");
-
       if (!bookingId || isNaN(additionalMinutes)) {
         return NextResponse.json({ error: "Invalid extension reference" }, { status: 400 });
       }
 
       const extBooking = await prisma.booking.findUnique({ where: { id: bookingId } });
       if (!extBooking || extBooking.status !== "ACTIVE") {
-        return NextResponse.json({ ok: true }); // session may have ended, ignore
+        return NextResponse.json({ ok: true });
+      }
+      // Idempotency: MP delivers each notification 2+ times. If this exact
+      // payment was already applied, do nothing (otherwise the session gets
+      // extended twice for one payment).
+      if (extBooking.paymentId === mpPaymentId) {
+        return NextResponse.json({ ok: true, alreadyApplied: true });
       }
 
       const currentEnd = extBooking.endTime ?? new Date();
       const newEnd = new Date(currentEnd.getTime() + additionalMinutes * 60 * 1000);
-
       await prisma.$transaction(async (tx) => {
         await tx.booking.update({
           where: { id: bookingId },
-          data: { endTime: newEnd },
+          data: { endTime: newEnd, paymentId: mpPaymentId },
         });
         await tx.payment.upsert({
           where: { bookingId },
-          create: {
-            bookingId,
-            mpPaymentId,
-            amount: mpPayment.transaction_amount ? Math.round(mpPayment.transaction_amount * 100) : 0,
-            status: "approved",
-          },
-          update: {
-            status: "approved",
-          },
+          create: { bookingId, mpPaymentId, amount: paidCents, status: "approved" },
+          update: { status: "approved", mpPaymentId },
         });
       });
-
       return NextResponse.json({ ok: true });
     }
 
@@ -148,22 +161,18 @@ export async function POST(req: NextRequest) {
       where: { id: externalRef },
       include: { puesto: true },
     });
-
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
-
-    // Only a still-PENDING booking should be confirmed. Anything else means:
-    //  - PAID: duplicate webhook (idempotent no-op)
-    //  - CANCELLED/EXPIRED: customer abandoned it (possibly refunded). Do NOT
-    //    auto-revive — the slot may have been reassigned. Leave for manual
-    //    handling, mirroring the direct-purchase branch above.
-    //  - ACTIVE/FINISHED: already in use / done.
+    if (paidCents > 0 && paidCents < booking.price) {
+      return NextResponse.json({ ok: true, underpaid: true });
+    }
+    // Only confirm a still-PENDING booking (idempotent for duplicate webhooks;
+    // no auto-revive of CANCELLED/EXPIRED — the reconciler/admin handles those).
     if (booking.status !== "PENDING") {
       return NextResponse.json({ ok: true, skipped: booking.status });
     }
 
-    // Generate unique code and cancel token
     let code = generateBookingCode();
     let exists = await prisma.booking.findUnique({ where: { code } });
     while (exists) {
@@ -172,27 +181,20 @@ export async function POST(req: NextRequest) {
     }
     const cancelToken = generateCancelToken();
 
-    // Update booking and create payment record
     await prisma.$transaction(async (tx) => {
       await tx.booking.update({
         where: { id: booking.id },
         data: { status: "PAID", code, paymentId: mpPaymentId, cancelToken },
       });
-      await tx.payment.create({
-        data: {
-          bookingId: booking.id,
-          mpPaymentId,
-          amount: mpPayment.transaction_amount ? Math.round(mpPayment.transaction_amount * 100) : booking.price,
-          status: "approved",
-        },
+      await tx.payment.upsert({
+        where: { bookingId: booking.id },
+        create: { bookingId: booking.id, mpPaymentId, amount: paidCents || booking.price, status: "approved" },
+        update: { status: "approved", mpPaymentId },
       });
     });
 
-    // Check emailEnabled setting
     const bizSettings = await prisma.businessSettings.findFirst();
     const emailEnabled = bizSettings?.emailEnabled !== false;
-
-    // Send confirmation email
     const email = booking.customerEmail ?? process.env.EMAIL_FALLBACK;
     if (emailEnabled && email) {
       const startTime = booking.startTime
@@ -204,26 +206,15 @@ export async function POST(req: NextRequest) {
         : "A confirmar";
       const baseUrl = process.env.NEXTAUTH_URL ?? "";
       const cancelUrl =
-        bizSettings?.allowCancel && cancelToken
-          ? `${baseUrl}/cancelar?token=${cancelToken}`
-          : null;
+        bizSettings?.allowCancel && cancelToken ? `${baseUrl}/cancelar?token=${cancelToken}` : null;
       await sendBookingConfirmationEmail(
-        email,
-        code,
-        booking.duration,
-        startTime,
-        booking.puesto.name,
-        bizSettings?.emailFrom,
-        cancelUrl
+        email, code, booking.duration, startTime, booking.puesto.name, bizSettings?.emailFrom, cancelUrl
       );
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[webhook mercadopago]", error);
-    return NextResponse.json(
-      { error: "Webhook error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }

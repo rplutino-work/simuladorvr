@@ -3,13 +3,34 @@ import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import type { Booking, Puesto } from "@prisma/client";
+
+/**
+ * Curated, safe view of a booking for a PUBLIC caller. Never leaks
+ * cancelToken, customerEmail or paymentId (see IDOR hardening).
+ */
+function safeBooking(b: Booking & { puesto: Puesto }, extra?: Record<string, unknown>) {
+  return {
+    id: b.id,
+    status: b.status,
+    code: b.code,
+    duration: b.duration,
+    startTime: b.startTime,
+    endTime: b.endTime,
+    price: b.price,
+    customerName: b.customerName,
+    puesto: { name: b.puesto.name },
+    puestoName: b.puesto.name,
+    ...extra,
+  };
+}
 
 /**
  * GET /api/bookings/[id]/verify-payment?paymentId=xxx
  *
- * Called from the confirmation page after MercadoPago redirects back.
- * Verifies payment status directly with MP API and marks booking as PAID.
- * This is the fallback for when the webhook cannot reach localhost.
+ * Fallback for the confirmation page when the webhook is delayed. Confirms the
+ * booking ONLY if the MercadoPago payment actually belongs to this booking and
+ * covers its price — the paymentId alone is not trusted.
  */
 export async function GET(
   req: NextRequest,
@@ -28,7 +49,6 @@ export async function GET(
     return NextResponse.json({ error: "MP no configurado" }, { status: 500 });
   }
 
-  // Fetch current booking
   const booking = await prisma.booking.findUnique({
     where: { id },
     include: { puesto: true },
@@ -37,12 +57,11 @@ export async function GET(
     return NextResponse.json({ error: "Reserva no encontrada" }, { status: 404 });
   }
 
-  // Already confirmed — return it as-is
+  // Already confirmed — return the safe view
   if (booking.status === "PAID" || booking.status === "ACTIVE") {
-    return NextResponse.json(booking);
+    return NextResponse.json(safeBooking(booking));
   }
 
-  // Verify with MercadoPago
   let mpStatus: string | null | undefined;
   let mpAmount: number | null | undefined;
   try {
@@ -53,15 +72,37 @@ export async function GET(
     mpAmount = mpPayment.transaction_amount;
 
     if (mpStatus !== "approved") {
-      return NextResponse.json({
-        ...booking,
-        _mpStatus: mpStatus,
-      });
+      return NextResponse.json(safeBooking(booking, { _mpStatus: mpStatus }));
     }
 
-    // Payment is approved — generate code and mark as PAID
+    // ── Bind the payment to THIS booking ────────────────────────────────────
+    // Without these checks anyone could confirm any booking (even someone
+    // else's, or a 120-min one) by pointing at a cheap approved payment, and
+    // reuse the same paymentId indefinitely.
+    if (mpPayment.external_reference !== id) {
+      return NextResponse.json(
+        { error: "El pago no corresponde a esta reserva" },
+        { status: 400 }
+      );
+    }
+    const paidCents = mpAmount ? Math.round(mpAmount * 100) : 0;
+    if (paidCents < booking.price) {
+      return NextResponse.json(
+        { error: "El monto del pago no coincide con la reserva" },
+        { status: 400 }
+      );
+    }
+    const mpPaymentIdStr = String(paymentId);
+    const reused = await prisma.payment.findFirst({
+      where: { mpPaymentId: mpPaymentIdStr, bookingId: { not: booking.id } },
+      select: { id: true },
+    });
+    if (reused) {
+      return NextResponse.json({ error: "Pago ya utilizado" }, { status: 409 });
+    }
+
     if (booking.status !== "PENDING") {
-      return NextResponse.json(booking);
+      return NextResponse.json(safeBooking(booking));
     }
 
     let code = generateBookingCode();
@@ -71,7 +112,6 @@ export async function GET(
       exists = await prisma.booking.findUnique({ where: { code } });
     }
 
-    const mpPaymentIdStr = String(paymentId);
     const cancelToken = generateCancelToken();
 
     await prisma.$transaction(async (tx) => {
@@ -79,23 +119,18 @@ export async function GET(
         where: { id: booking.id },
         data: { status: "PAID", code, paymentId: mpPaymentIdStr, cancelToken },
       });
-      // Upsert payment record (webhook may have already created it)
       await tx.payment.upsert({
         where: { bookingId: booking.id },
         create: {
           bookingId: booking.id,
           mpPaymentId: mpPaymentIdStr,
-          amount: mpAmount ? Math.round(mpAmount * 100) : booking.price,
+          amount: paidCents || booking.price,
           status: "approved",
         },
-        update: {
-          status: "approved",
-          mpPaymentId: mpPaymentIdStr,
-        },
+        update: { status: "approved", mpPaymentId: mpPaymentIdStr },
       });
     });
 
-    // Send confirmation email
     const bizSettings = await prisma.businessSettings.findFirst();
     const emailOk = bizSettings?.emailEnabled !== false;
     const emailTo = booking.customerEmail ?? process.env.EMAIL_FALLBACK;
@@ -131,10 +166,9 @@ export async function GET(
       where: { id },
       include: { puesto: true },
     });
-    return NextResponse.json(updated);
+    return NextResponse.json(updated ? safeBooking(updated) : safeBooking(booking));
   } catch (err) {
     console.error("[verify-payment] error:", err);
-    // Return current booking state even on MP API error
-    return NextResponse.json(booking);
+    return NextResponse.json(safeBooking(booking));
   }
 }

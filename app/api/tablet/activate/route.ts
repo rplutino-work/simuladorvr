@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isSlotAvailable } from "@/lib/availability";
 
 /**
  * POST /api/tablet/activate
@@ -93,6 +94,20 @@ export async function POST(req: NextRequest) {
     // Activate: recalculate endTime from current moment so user gets their full time
     const now = new Date();
     const endTime = new Date(now.getTime() + booking.duration * 60 * 1000);
+
+    // The session runs from NOW (not the reserved slot). Make sure that window
+    // doesn't overlap another reservation on this puesto — otherwise a late
+    // arrival would eat into the next customer's turn.
+    const collisionFree = await isSlotAvailable(puestoId, now, endTime, booking.id);
+    if (!collisionFree) {
+      return NextResponse.json(
+        {
+          error:
+            "Tu sesión se superpondría con la próxima reserva de este simulador. Avisá al operador.",
+        },
+        { status: 409 }
+      );
+    }
 
     await prisma.booking.update({
       where: { id: booking.id },

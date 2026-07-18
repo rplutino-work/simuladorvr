@@ -66,6 +66,28 @@ export async function PATCH(
     return NextResponse.json({ error: "Reserva no encontrada" }, { status: 404 });
   }
 
+  // Sessions start from the tablet (which sets coherent start/end times).
+  // Setting ACTIVE by hand would leave a booking without a real endTime, which
+  // then never auto-finishes and blocks the puesto.
+  if (parsed.data.status === "ACTIVE" && existing.status !== "ACTIVE") {
+    return NextResponse.json(
+      { error: "Para iniciar una sesión, ingresá el código en la tablet del simulador." },
+      { status: 400 }
+    );
+  }
+  // Don't resurrect a finished/expired/cancelled booking into an active state.
+  const terminal = ["FINISHED", "EXPIRED", "CANCELLED"];
+  if (
+    parsed.data.status &&
+    terminal.includes(existing.status) &&
+    ["PAID", "PENDING"].includes(parsed.data.status)
+  ) {
+    return NextResponse.json(
+      { error: `No se puede reactivar una reserva ${existing.status.toLowerCase()}.` },
+      { status: 400 }
+    );
+  }
+
   const updateData: Record<string, unknown> = { ...parsed.data };
 
   // When manually setting to PAID and no code yet, generate one + create Payment record + send email

@@ -12,10 +12,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // All day/month boundaries are computed in Argentina time (UTC-3), not the
+  // server's UTC — otherwise "hoy" would reset at 21:00 local (peak hours).
+  const AR_OFFSET = 3 * 60 * 60 * 1000;
+  const nowAR = new Date(Date.now() - AR_OFFSET);
+  const startOfTodayUTC = new Date(
+    Date.UTC(nowAR.getUTCFullYear(), nowAR.getUTCMonth(), nowAR.getUTCDate()) + AR_OFFSET
+  );
+  const startOfMonthUTC = new Date(
+    Date.UTC(nowAR.getUTCFullYear(), nowAR.getUTCMonth(), 1) + AR_OFFSET
+  );
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [
     activeBookingsCount,
@@ -29,14 +36,14 @@ export async function GET(req: NextRequest) {
     prisma.payment.aggregate({
       where: {
         status: "approved",
-        createdAt: { gte: today },
+        createdAt: { gte: startOfTodayUTC },
       },
       _sum: { amount: true },
     }),
     prisma.payment.aggregate({
       where: {
         status: "approved",
-        createdAt: { gte: thirtyDaysAgo },
+        createdAt: { gte: startOfMonthUTC },
       },
       _sum: { amount: true },
     }),
@@ -75,9 +82,12 @@ export async function GET(req: NextRequest) {
     count: b._count.id,
   }));
 
+  // Bucket by Argentina local hour, not the server's UTC hour.
   const hourlyHeatmap = Array.from({ length: 24 }, (_, h) => ({
     hour: h,
-    count: hourlyData.filter((b) => b.startTime && new Date(b.startTime).getHours() === h).length,
+    count: hourlyData.filter(
+      (b) => b.startTime && new Date(b.startTime.getTime() - AR_OFFSET).getUTCHours() === h
+    ).length,
   }));
 
   return NextResponse.json({
