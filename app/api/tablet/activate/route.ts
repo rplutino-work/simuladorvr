@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isSlotAvailable } from "@/lib/availability";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { withPuestoLock } from "@/lib/booking-lock";
 
 /**
  * POST /api/tablet/activate
@@ -89,45 +90,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Don't start a second session on a puesto that already has one running
-    // (e.g. two valid codes presented back-to-back). Otherwise both stay ACTIVE
-    // forever, blocking availability and confusing the status endpoint.
-    const activeOnPuesto = await prisma.booking.findFirst({
-      where: { puestoId, status: "ACTIVE", id: { not: booking.id } },
+    // Activate under a per-puesto lock so two codes presented at the same time
+    // can't both start a session (which would leave two ACTIVE bookings).
+    const now = new Date();
+    const endTime = new Date(now.getTime() + booking.duration * 60 * 1000);
+
+    const outcome = await withPuestoLock(puestoId, async (tx) => {
+      // Another session already running?
+      const activeOnPuesto = await tx.booking.findFirst({
+        where: { puestoId, status: "ACTIVE", id: { not: booking.id } },
+        select: { id: true },
+      });
+      if (activeOnPuesto) return "busy" as const;
+      // The session runs from NOW — make sure it doesn't overlap the next reservation.
+      const collisionFree = await isSlotAvailable(puestoId, now, endTime, booking.id, tx);
+      if (!collisionFree) return "collision" as const;
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: { status: "ACTIVE", startTime: now, endTime },
+      });
+      return "ok" as const;
     });
-    if (activeOnPuesto) {
+
+    if (outcome === "busy") {
       return NextResponse.json(
         { error: "El simulador ya tiene una sesión en curso. Esperá a que termine." },
         { status: 409 }
       );
     }
-
-    // Activate: recalculate endTime from current moment so user gets their full time
-    const now = new Date();
-    const endTime = new Date(now.getTime() + booking.duration * 60 * 1000);
-
-    // The session runs from NOW (not the reserved slot). Make sure that window
-    // doesn't overlap another reservation on this puesto — otherwise a late
-    // arrival would eat into the next customer's turn.
-    const collisionFree = await isSlotAvailable(puestoId, now, endTime, booking.id);
-    if (!collisionFree) {
+    if (outcome === "collision") {
       return NextResponse.json(
-        {
-          error:
-            "Tu sesión se superpondría con la próxima reserva de este simulador. Avisá al operador.",
-        },
+        { error: "Tu sesión se superpondría con la próxima reserva de este simulador. Avisá al operador." },
         { status: 409 }
       );
     }
-
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: {
-        status: "ACTIVE",
-        startTime: now,
-        endTime,
-      },
-    });
 
     return NextResponse.json({
       bookingId: booking.id,

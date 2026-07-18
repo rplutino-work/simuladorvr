@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/db";
+import type { Prisma, PrismaClient } from "@prisma/client";
+
+/** Accepts either the base client or an interactive transaction client. */
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 const DEFAULT_SETTINGS = {
   openHour: 10,
@@ -16,10 +20,10 @@ export type SlotInfo = { startTime: Date; available: boolean };
 /**
  * Get or create singleton BusinessSettings
  */
-export async function getBusinessSettings() {
-  let settings = await prisma.businessSettings.findFirst();
+export async function getBusinessSettings(client: DbClient = prisma) {
+  let settings = await client.businessSettings.findFirst();
   if (!settings) {
-    settings = await prisma.businessSettings.create({
+    settings = await client.businessSettings.create({
       data: {
         openHour: DEFAULT_SETTINGS.openHour,
         closeHour: DEFAULT_SETTINGS.closeHour,
@@ -154,9 +158,10 @@ export async function isSlotAvailable(
   puestoId: string,
   startTime: Date,
   endTime: Date,
-  excludeBookingId?: string
+  excludeBookingId?: string,
+  client: DbClient = prisma
 ): Promise<boolean> {
-  const settings = await getBusinessSettings();
+  const settings = await getBusinessSettings(client);
   const marginMs = settings.negativeMarginMinutes * 60 * 1000;
   // Use UTC boundaries for consistency with getAvailability (the server runs in
   // UTC on Vercel; setHours would silently break on a non-UTC host).
@@ -165,7 +170,7 @@ export async function isSlotAvailable(
   const dayEnd = new Date(startTime);
   dayEnd.setUTCHours(23, 59, 59, 999);
 
-  const bookings = await prisma.booking.findMany({
+  const bookings = await client.booking.findMany({
     where: {
       puestoId,
       ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),

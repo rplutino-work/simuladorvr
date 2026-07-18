@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { isSlotAvailable } from "@/lib/availability";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { withPuestoLock } from "@/lib/booking-lock";
 
 const TIERS = [30, 60, 120] as const;
 const MIN_USABLE_MINUTES = 10;
@@ -86,27 +87,28 @@ export async function POST(
     const now = new Date();
     const endTime = new Date(now.getTime() + actualMinutes * 60 * 1000);
 
-    // Final availability check — blocks double-booking if another customer
-    // reserves the slot online in the moment between rendering the options
-    // and clicking.
-    const available = await isSlotAvailable(puestoId, now, endTime);
-    if (!available) {
+    // Availability check + create under a per-puesto advisory lock so two
+    // people can't buy the same puesto/slot at the same time.
+    const booking = await withPuestoLock(puestoId, async (tx) => {
+      const available = await isSlotAvailable(puestoId, now, endTime, undefined, tx);
+      if (!available) return null;
+      return tx.booking.create({
+        data: {
+          puestoId,
+          duration: actualMinutes,
+          price,
+          status: "PENDING",
+          startTime: now,
+          endTime,
+        },
+      });
+    });
+    if (!booking) {
       return NextResponse.json(
         { error: "El puesto ya no está disponible. Volvé a intentar." },
         { status: 409 }
       );
     }
-
-    const booking = await prisma.booking.create({
-      data: {
-        puestoId,
-        duration: actualMinutes,
-        price,
-        status: "PENDING",
-        startTime: now,
-        endTime,
-      },
-    });
 
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     if (!accessToken) {

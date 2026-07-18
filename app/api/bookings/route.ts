@@ -4,6 +4,7 @@ import { createBookingSchema } from "@/lib/validations/booking";
 import { isSlotAvailable } from "@/lib/availability";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { withPuestoLock } from "@/lib/booking-lock";
 
 /**
  * POST /api/bookings
@@ -46,14 +47,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const available = await isSlotAvailable(puestoId, startTime, endTime);
-    if (!available) {
-      return NextResponse.json(
-        { error: "El horario ya no está disponible" },
-        { status: 409 }
-      );
-    }
-
     const priceKey = `price${duration}` as "price30" | "price60" | "price120";
     const price = puesto[priceKey];
     if (!price || price <= 0) {
@@ -63,18 +56,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const booking = await prisma.booking.create({
-      data: {
-        puestoId,
-        duration,
-        price,
-        status: "PENDING",
-        startTime,
-        endTime,
-        customerEmail: customerEmail ?? undefined,
-      },
-      include: { puesto: true },
+    // Availability check + create under a per-puesto advisory lock so two
+    // customers can't both grab the same slot.
+    const booking = await withPuestoLock(puestoId, async (tx) => {
+      const available = await isSlotAvailable(puestoId, startTime, endTime, undefined, tx);
+      if (!available) return null;
+      return tx.booking.create({
+        data: {
+          puestoId,
+          duration,
+          price,
+          status: "PENDING",
+          startTime,
+          endTime,
+          customerEmail: customerEmail ?? undefined,
+        },
+        include: { puesto: true },
+      });
     });
+    if (!booking) {
+      return NextResponse.json(
+        { error: "El horario ya no está disponible" },
+        { status: 409 }
+      );
+    }
 
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     if (!accessToken) {
