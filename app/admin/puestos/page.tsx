@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Power, PowerOff, Pencil, Check, X } from "lucide-react";
+import { Plus, Power, PowerOff, Pencil, Check, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -250,9 +250,17 @@ export default function PuestosPage() {
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <p className="font-semibold text-slate-900">{p.name}</p>
-                          <Badge variant={p.active ? "success" : "secondary"} className="mt-1">
-                            {p.active ? "Activo" : "Inactivo"}
-                          </Badge>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <Badge variant={p.active ? "success" : "secondary"}>
+                              {p.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                            {(p.price30 === 0 || p.price60 === 0 || p.price120 === 0) && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                <AlertTriangle className="h-3 w-3" />
+                                Precio en $0
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" onClick={() => startEdit(p)} className="h-8 w-8">
@@ -334,10 +342,17 @@ export default function PuestosPage() {
                         </TableRow>
                       ) : (
                         <TableRow key={p.id}>
-                          <TableCell className="font-medium">{p.name}</TableCell>
-                          <TableCell>${(p.price30 / 100).toLocaleString("es-AR")}</TableCell>
-                          <TableCell>${(p.price60 / 100).toLocaleString("es-AR")}</TableCell>
-                          <TableCell>${(p.price120 / 100).toLocaleString("es-AR")}</TableCell>
+                          <TableCell className="font-medium">
+                            <span className="inline-flex items-center gap-1.5">
+                              {p.name}
+                              {(p.price30 === 0 || p.price60 === 0 || p.price120 === 0) && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Tiene un precio en $0" />
+                              )}
+                            </span>
+                          </TableCell>
+                          <TableCell className={p.price30 === 0 ? "text-amber-600 font-medium" : ""}>${(p.price30 / 100).toLocaleString("es-AR")}</TableCell>
+                          <TableCell className={p.price60 === 0 ? "text-amber-600 font-medium" : ""}>${(p.price60 / 100).toLocaleString("es-AR")}</TableCell>
+                          <TableCell className={p.price120 === 0 ? "text-amber-600 font-medium" : ""}>${(p.price120 / 100).toLocaleString("es-AR")}</TableCell>
                           <TableCell>
                             <Badge variant={p.active ? "success" : "secondary"}>{p.active ? "Activo" : "Inactivo"}</Badge>
                           </TableCell>

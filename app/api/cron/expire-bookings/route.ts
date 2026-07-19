@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/cron/expire-bookings
@@ -118,12 +119,12 @@ export async function GET(req: NextRequest) {
                   : null;
               await sendBookingConfirmationEmail(
                 emailTo, code, b.duration, startTime, b.puesto.name, bizSettings?.emailFrom, cancelUrl
-              ).catch((e) => console.error("[cron reconcile] email:", e));
+              ).catch((e) => logger.error("cron.reconcile.email", { bookingId: b.id }, e));
             }
           }
           reconciled++;
         } catch (e) {
-          console.error("[cron reconcile] booking", b.id, e);
+          logger.error("cron.reconcile.booking", { bookingId: b.id }, e);
         }
       }
     }

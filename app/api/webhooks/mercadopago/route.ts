@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
 
 /**
  * Validates MercadoPago's `x-signature` HMAC. Only enforced when
@@ -214,7 +215,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("[webhook mercadopago]", error);
+    logger.error("webhook.mercadopago.failed", {}, error);
     return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }

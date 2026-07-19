@@ -17,6 +17,10 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronUp,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +58,14 @@ type Puesto = {
   price120: number;
 };
 
+type Payment = {
+  id: string;
+  mpPaymentId: string;
+  amount: number;
+  status: string;
+  createdAt: string;
+};
+
 type Booking = {
   id: string;
   code: string | null;
@@ -66,6 +78,7 @@ type Booking = {
   customerName: string | null;
   notes: string | null;
   puesto: { id: string; name: string };
+  payment: Payment | null;
   createdAt: string;
 };
 
@@ -104,6 +117,9 @@ function BookingDetail({
   const [notes, setNotes] = useState(booking.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+  const [confirmRefund, setConfirmRefund] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   async function saveNotes() {
     setSaving(true);
@@ -115,6 +131,32 @@ function BookingDetail({
     setSaving(false);
     onRefresh();
   }
+
+  async function handleRefund() {
+    setRefunding(true);
+    setRefundError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${booking.id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo reembolsar");
+      onRefresh();
+    } catch (err) {
+      setRefundError(err instanceof Error ? err.message : "Error desconocido");
+      setRefunding(false);
+      setConfirmRefund(false);
+    }
+  }
+
+  // A refund makes sense only where money actually changed hands and the
+  // booking isn't already cancelled.
+  const canRefund =
+    booking.status !== "CANCELLED" &&
+    (booking.payment !== null || booking.status === "PAID" ||
+      booking.status === "ACTIVE" || booking.status === "FINISHED");
 
   function handleCopy() {
     if (booking.code) {
@@ -212,6 +254,95 @@ function BookingDetail({
                 })}
               </p>
             </div>
+          </div>
+
+          {/* Payment detail */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+              Pago
+            </p>
+            {booking.payment ? (
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs">Medio</p>
+                  <p className="font-medium">
+                    {booking.payment.mpPaymentId.startsWith("manual-")
+                      ? "Efectivo / manual"
+                      : "MercadoPago"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs">Estado del pago</p>
+                  <p className={`font-medium ${booking.payment.status === "refunded" ? "text-red-600" : "text-green-700"}`}>
+                    {booking.payment.status === "approved"
+                      ? "Aprobado"
+                      : booking.payment.status === "refunded"
+                      ? "Reembolsado"
+                      : booking.payment.status}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs">Monto</p>
+                  <p className="font-medium">
+                    ${(booking.payment.amount / 100).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-slate-500 text-xs">ID MercadoPago</p>
+                  <p className="font-mono text-xs truncate">{booking.payment.mpPaymentId}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Sin pago registrado (efectivo o pendiente).</p>
+            )}
+
+            {/* Refund */}
+            {canRefund && (
+              <div className="mt-4 border-t border-slate-200 pt-3">
+                {refundError && (
+                  <p className="mb-2 text-xs text-red-600">{refundError}</p>
+                )}
+                {booking.payment?.status === "refunded" ? (
+                  <p className="text-xs font-medium text-red-600">
+                    Esta reserva ya fue reembolsada.
+                  </p>
+                ) : confirmRefund ? (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleRefund}
+                      disabled={refunding}
+                      className="flex-1"
+                    >
+                      {refunding ? "Reembolsando..." : "Confirmar reembolso"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmRefund(false)}
+                      disabled={refunding}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setConfirmRefund(true)}
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    Reembolsar y cancelar
+                  </Button>
+                )}
+                <p className="mt-2 text-[11px] leading-snug text-slate-400">
+                  {booking.payment && !booking.payment.mpPaymentId.startsWith("manual-")
+                    ? "Se procesa el reembolso en MercadoPago y se cancela la reserva."
+                    : "Registra el reembolso (efectivo) y cancela la reserva."}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Notes */}
@@ -340,10 +471,19 @@ function WalkInModal({
             </div>
             <div className="space-y-1.5">
               <Label>Precio</Label>
-              <div className="flex h-9 items-center rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm font-medium text-slate-700">
+              <div className={`flex h-9 items-center rounded-xl border px-3 text-sm font-medium ${price === 0 ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-100 bg-slate-50 text-slate-700"}`}>
                 ${price.toLocaleString("es-AR")}
               </div>
             </div>
+            {price === 0 && (
+              <div className="col-span-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                <span>
+                  El precio de este simulador para {form.duration} min es <b>$0</b>.
+                  Verificá la configuración de precios antes de crear la reserva.
+                </span>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Fecha</Label>
               <Input type="date" value={form.date} min={today} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
@@ -414,18 +554,40 @@ export default function ReservasPage() {
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const PAGE_SIZE = 50;
+
+  // Debounce the search box so we don't fire a query on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Any filter/search change resets to the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, debouncedSearch]);
 
   const fetchBookings = useCallback(() => {
-    const url =
-      statusFilter === "all"
-        ? "/api/admin/bookings"
-        : `/api/admin/bookings?status=${statusFilter}`;
-    fetch(url)
+    const params = new URLSearchParams();
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
+    fetch(`/api/admin/bookings?${params.toString()}`)
       .then((r) => r.json())
-      .then(setBookings)
+      .then((data) => {
+        setBookings(data.bookings ?? []);
+        setTotal(data.total ?? 0);
+        setCounts(data.counts ?? {});
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, [statusFilter, debouncedSearch, page]);
 
   useEffect(() => {
     fetch("/api/admin/puestos")
@@ -462,7 +624,16 @@ export default function ReservasPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Reservas</h1>
           <p className="mt-1 text-sm text-slate-600">Gestión completa de turnos y sesiones</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-56">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Código, nombre o email…"
+              className="pl-9"
+            />
+          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="Filtrar por estado" />
@@ -485,7 +656,7 @@ export default function ReservasPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {Object.entries(STATUS_LABELS).map(([status, label]) => {
-          const count = bookings.filter((b) => b.status === status).length;
+          const count = counts[status] ?? 0;
           return (
             <button
               key={status}
@@ -504,8 +675,10 @@ export default function ReservasPage() {
         <CardHeader>
           <CardTitle>Lista de reservas</CardTitle>
           <CardDescription>
-            {bookings.length} resultado{bookings.length !== 1 ? "s" : ""}
-            {statusFilter !== "all" ? ` · filtrado por ${STATUS_LABELS[statusFilter]}` : ""}
+            {total} resultado{total !== 1 ? "s" : ""}
+            {statusFilter !== "all" ? ` · ${STATUS_LABELS[statusFilter]}` : ""}
+            {debouncedSearch ? ` · "${debouncedSearch}"` : ""}
+            {total > PAGE_SIZE ? ` · página ${page} de ${Math.ceil(total / PAGE_SIZE)}` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -811,6 +984,39 @@ export default function ReservasPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination */}
+              {total > PAGE_SIZE && (
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+                  <p className="text-xs text-slate-500">
+                    Mostrando {(page - 1) * PAGE_SIZE + 1}–
+                    {Math.min(page * PAGE_SIZE, total)} de {total}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1 || loading}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Anterior
+                    </Button>
+                    <span className="text-xs text-slate-600 tabular-nums">
+                      {page} / {Math.ceil(total / PAGE_SIZE)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= Math.ceil(total / PAGE_SIZE) || loading}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      Siguiente
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>

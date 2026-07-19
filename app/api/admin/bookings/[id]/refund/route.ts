@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/admin/bookings/[id]/refund  (admin/operator)
@@ -63,7 +64,7 @@ export async function POST(
     );
     if (!mpRes.ok) {
       const err = await mpRes.json().catch(() => ({}));
-      console.error("[admin refund] MP error:", err);
+      logger.error("refund.mp.rejected", { bookingId: id, mpPaymentId: payment.mpPaymentId }, err);
       return NextResponse.json(
         { error: "MercadoPago rechazó el reembolso. Revisá en la consola de MP." },
         { status: 502 }
@@ -75,7 +76,7 @@ export async function POST(
     ]);
     return NextResponse.json({ ok: true, refunded: true });
   } catch (e) {
-    console.error("[admin refund] exception:", e);
+    logger.error("refund.exception", { bookingId: id, mpPaymentId: payment.mpPaymentId }, e);
     return NextResponse.json({ error: "Error al procesar el reembolso" }, { status: 500 });
   }
 }

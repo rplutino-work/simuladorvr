@@ -1,0 +1,41 @@
+name: Cron — expire & reconcile bookings
+
+# Vercel's Hobby plan only allows ONE daily cron, but the expiry/reconciliation
+# job needs to run every few minutes (expire stale PENDINGs, auto-finish ended
+# sessions, reconcile payments MercadoPago confirmed while a webhook was lost).
+# GitHub Actions gives us a free ~10-minute heartbeat that hits the same
+# endpoint with the shared CRON_SECRET.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   CRON_SECRET  — must match the CRON_SECRET env var in Vercel
+# Optional repo variable:
+#   APP_URL      — defaults to https://raceroom.com.ar
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes (GitHub may delay under load)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit expire-bookings endpoint
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://raceroom.com.ar' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not set — add it in repo settings."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/cron_out.txt -w "%{http_code}" \
+            "$APP_URL/api/cron/expire-bookings" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          echo "HTTP $code"
+          cat /tmp/cron_out.txt
+          # Fail the run on any non-2xx so a broken cron surfaces in the Actions tab.
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::Cron endpoint returned HTTP $code"
+            exit 1
+          fi
