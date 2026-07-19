@@ -135,7 +135,6 @@ function ProgressRing({ pct, warning }: { pct: number; warning: boolean }) {
 
 // ─── Main component ─────────────────────────────────────────────────────────
 export default function TabletPage() {
-  useAutoReload();
   const params = useParams();
   const rawPuestoId = params?.puestoId as string;
 
@@ -163,6 +162,10 @@ export default function TabletPage() {
   const [state, setState] = useState<State>("screensaver");
   const [codeInput, setCodeInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [errorTitle, setErrorTitle] = useState("CÓDIGO INVÁLIDO");
+  // Guards handleActivate against a double fire (auto-submit effect + manual
+  // button, or a fast double tap) which would POST the same code twice.
+  const activatingRef = useRef(false);
   const [puestoName, setPuestoName] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
@@ -181,6 +184,11 @@ export default function TabletPage() {
   const screensaverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const directTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const directPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-reload on new deploys, but never while the tablet is doing something
+  // that a reload would interrupt — a payment, a QR on screen, or a live
+  // session. Only the idle screensaver is a safe moment to reload.
+  useAutoReload(() => state !== "screensaver");
 
   // ── Device heartbeat (liveness ping for admin) ──────────────────────────
   // Runs regardless of screen state — the tablet sits on the screensaver most
@@ -351,6 +359,7 @@ export default function TabletPage() {
       setDirectOptions(data.options ?? []);
     } catch {
       setDirectOptions([]);
+      setErrorTitle("SIN CONEXIÓN");
       setErrorMsg("No se pudieron cargar las opciones. Verificá el Wi-Fi.");
       setState("error");
     }
@@ -368,7 +377,8 @@ export default function TabletPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Error al crear el pago");
+        setErrorTitle("ERROR DE PAGO");
+        setErrorMsg(data.error ?? "No se pudo crear el pago. Probá de nuevo.");
         setState("error");
         return;
       }
@@ -410,6 +420,7 @@ export default function TabletPage() {
         }
       }, 3000);
     } catch {
+      setErrorTitle("SIN CONEXIÓN");
       setErrorMsg("Error de conexión al crear el pago.");
       setState("error");
     }
@@ -485,9 +496,14 @@ export default function TabletPage() {
   async function handleActivate() {
     const trimmed = codeInput.trim().toUpperCase();
     if (trimmed.length !== 4) {
+      setErrorTitle("CÓDIGO INCOMPLETO");
       setErrorMsg("El código debe tener 4 caracteres");
       return;
     }
+    // Double-submit guard: the auto-submit effect and the manual button can
+    // both call this in the same instant.
+    if (activatingRef.current) return;
+    activatingRef.current = true;
     setState("validating");
     try {
       const res = await fetch("/api/tablet/activate", {
@@ -497,7 +513,24 @@ export default function TabletPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Error al validar");
+        // Distinguish "the code is wrong" from operational failures so the
+        // customer isn't told "CÓDIGO INVÁLIDO" when the real issue is the
+        // puesto being busy or too many attempts.
+        if (res.status === 429) {
+          setErrorTitle("DEMASIADOS INTENTOS");
+          setErrorMsg(data.error ?? "Esperá un momento y volvé a intentar.");
+        } else if (res.status === 409) {
+          setErrorTitle("PUESTO OCUPADO");
+          setErrorMsg(
+            data.error ?? "Este simulador ya tiene una sesión activa."
+          );
+        } else if (res.status >= 500) {
+          setErrorTitle("ERROR DEL SERVIDOR");
+          setErrorMsg(data.error ?? "Ocurrió un error. Probá de nuevo.");
+        } else {
+          setErrorTitle("CÓDIGO INVÁLIDO");
+          setErrorMsg(data.error ?? "El código no es válido o ya fue usado.");
+        }
         setState("error");
         return;
       }
@@ -509,8 +542,11 @@ export default function TabletPage() {
       setState("active");
     } catch (err) {
       console.error("[tablet] activate error:", err);
-      setErrorMsg("Error de conexión. Verificá el Wi-Fi.");
+      setErrorTitle("SIN CONEXIÓN");
+      setErrorMsg("No pudimos conectar. Verificá el Wi-Fi e intentá de nuevo.");
       setState("error");
+    } finally {
+      activatingRef.current = false;
     }
   }
 
@@ -575,7 +611,8 @@ export default function TabletPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Error al crear el pago");
+        setErrorTitle("ERROR DE PAGO");
+        setErrorMsg(data.error ?? "No se pudo crear el pago. Probá de nuevo.");
         setState("error");
         return;
       }
@@ -586,6 +623,7 @@ export default function TabletPage() {
       setExtendMinutes(minutes);
       setState("extend_qr");
     } catch {
+      setErrorTitle("SIN CONEXIÓN");
       setErrorMsg("Error de conexión al crear el pago.");
       setState("error");
     }
@@ -1109,7 +1147,7 @@ export default function TabletPage() {
                 <span className="text-4xl">❌</span>
               </motion.div>
               <h2 className="font-racing text-3xl tracking-widest text-white mb-4">
-                CÓDIGO INVÁLIDO
+                {errorTitle}
               </h2>
               <div className="mb-8 rounded-xl border border-red-500/20 bg-red-900/20 px-6 py-4">
                 <p className="font-condensed text-base text-red-300 leading-relaxed">
@@ -1119,9 +1157,14 @@ export default function TabletPage() {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
-                  setCodeInput("");
                   setErrorMsg("");
-                  setState("input");
+                  // Code-related failures return to the keypad; payment/network
+                  // failures go back to the start so the customer can re-choose.
+                  const isCodeError =
+                    errorTitle === "CÓDIGO INVÁLIDO" ||
+                    errorTitle === "CÓDIGO INCOMPLETO";
+                  setCodeInput("");
+                  setState(isCodeError ? "input" : "screensaver");
                 }}
                 className="w-full rounded-2xl bg-[#E60012] py-5 font-racing text-xl tracking-widest text-white uppercase shadow-[0_0_24px_rgba(230,0,18,0.35)]"
               >

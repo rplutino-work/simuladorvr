@@ -27,8 +27,15 @@ function ConfirmationContent() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError]     = useState<string | null>(null);
   const [copied, setCopied]   = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const verifiedRef = useRef(false);
   const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // If the payment isn't confirmed within this window, stop pretending it's
+  // seconds away and show a calmer "it's taking longer" screen — the code
+  // still arrives by email once the webhook lands.
+  const PROCESSING_TIMEOUT_MS = 90_000;
 
   async function fetchBooking() {
     if (!bookingId) return;
@@ -67,14 +74,24 @@ function ConfirmationContent() {
     fetchBooking();
     if (mpPaymentId && mpStatus === "approved") verifyWithMP();
     pollRef.current = setInterval(fetchBooking, 6_000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    timeoutRef.current = setTimeout(() => setTimedOut(true), PROCESSING_TIMEOUT_MS);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
   useEffect(() => {
-    if (booking?.code && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+    if (booking?.code) {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     }
   }, [booking?.code]);
 
@@ -238,8 +255,8 @@ function ConfirmationContent() {
             </motion.div>
           )}
 
-          {/* ── Processing ────────────────────────────────────────────── */}
-          {bookingId && !error && !isPaid && (
+          {/* ── Processing (still within the fast window) ─────────────── */}
+          {bookingId && !error && !isPaid && !timedOut && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
               <div className="rounded-2xl border border-white/10 bg-white/5">
                 <div className="flex flex-col items-center gap-4 px-6 py-10">
@@ -266,6 +283,50 @@ function ConfirmationContent() {
                   </div>
                 </div>
                 <div className="border-t border-white/5 px-6 py-4">
+                  <Link href="/">
+                    <button className="w-full h-10 rounded-xl border border-white/10 font-condensed text-xs tracking-widest uppercase text-white/40 hover:text-white/70 transition">
+                      VOLVER AL INICIO
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Taking longer than expected ───────────────────────────── */}
+          {bookingId && !error && !isPaid && timedOut && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+              <div className="rounded-2xl border border-white/10 bg-white/5">
+                <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-white/5">
+                    <Clock className="h-6 w-6 text-white/50" />
+                  </div>
+                  <div>
+                    <h2 className="font-racing text-xl tracking-wider text-white">
+                      ESTÁ TARDANDO UN POCO
+                    </h2>
+                    <p className="mt-1.5 text-sm text-white/50 font-condensed leading-relaxed">
+                      Tu pago puede seguir procesándose. Si ya lo completaste, el
+                      código de acceso te va a llegar por email en cuanto se
+                      confirme — no hace falta que pagues de nuevo.
+                    </p>
+                    {mpPaymentId && (
+                      <p className="mt-2 text-xs text-white/25 font-mono">
+                        Pago #{mpPaymentId}
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs text-white/25 font-mono">
+                      Reserva #{bookingId}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t border-white/5 px-6 py-4 space-y-2">
+                  <button
+                    onClick={() => { setTimedOut(false); fetchBooking(); }}
+                    className="w-full h-11 rounded-xl bg-[#E60012] hover:bg-[#ff1a2b] font-condensed font-bold tracking-widest uppercase text-sm text-white transition"
+                  >
+                    REVISAR DE NUEVO
+                  </button>
                   <Link href="/">
                     <button className="w-full h-10 rounded-xl border border-white/10 font-condensed text-xs tracking-widest uppercase text-white/40 hover:text-white/70 transition">
                       VOLVER AL INICIO

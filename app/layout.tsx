@@ -25,8 +25,53 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "Race Room",
-  description: "Race Room — simuladores de carreras",
+  metadataBase: new URL("https://raceroom.com.ar"),
+  title: {
+    default: "Race Room — Simuladores de carreras",
+    template: "%s · Race Room",
+  },
+  description:
+    "Reservá tu sesión en los simuladores de carreras de Race Room. Elegí puesto, día y horario, y viví la experiencia de manejar como un profesional.",
+  keywords: [
+    "simulador de carreras",
+    "race room",
+    "simracing",
+    "reservas",
+    "Argentina",
+  ],
+  applicationName: "Race Room",
+  icons: {
+    icon: "/race-room-rr.png",
+    apple: "/race-room-rr.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "es_AR",
+    url: "https://raceroom.com.ar",
+    siteName: "Race Room",
+    title: "Race Room — Simuladores de carreras",
+    description:
+      "Reservá tu sesión en los simuladores de carreras de Race Room. Elegí puesto, día y horario y corré como un profesional.",
+    images: [
+      {
+        url: "/race-room-logo.png",
+        width: 512,
+        height: 512,
+        alt: "Race Room",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Race Room — Simuladores de carreras",
+    description:
+      "Reservá tu sesión en los simuladores de carreras de Race Room.",
+    images: ["/race-room-logo.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
