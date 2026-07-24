@@ -37,7 +37,7 @@ export default function LandingPage() {
         className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4"
       >
         <div className="container mx-auto">
-          <div className="flex h-14 items-center justify-between rounded-2xl border border-white/10 bg-[#0E0E12]/80 px-3 shadow-[0_10px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:px-5">
+          <div className="flex h-14 items-center justify-between rounded-2xl border border-white/10 bg-[#0E0E12]/90 px-3 shadow-[0_10px_40px_rgba(0,0,0,0.55)] backdrop-blur-md sm:px-5">
             {/* Logo */}
             <Link href="/" className="flex shrink-0 items-center">
               <Image
@@ -120,15 +120,20 @@ export default function LandingPage() {
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Animated branded background — matches the neon logo, no stock photo */}
         <div className="absolute inset-0 z-0 overflow-hidden bg-[#0A0A0C]">
-          {/* Pulsing red glow orbs */}
+          {/* Pulsing red glow orbs — opacity only (animating scale on a
+              130px-blurred orb re-rasterizes the blur every frame and flickers
+              on mobile GPUs). translateZ(0)+will-change keeps them on their own
+              compositor layer so the header's backdrop-blur doesn't repaint. */}
           <motion.div
-            className="absolute -top-1/4 -left-1/4 h-[65vh] w-[65vh] rounded-full bg-[#E60012] blur-[130px]"
-            animate={{ scale: [1, 1.18, 1], opacity: [0.18, 0.32, 0.18] }}
+            className="absolute -top-1/4 -left-1/4 h-[65vh] w-[65vh] rounded-full bg-[#E60012] blur-[120px]"
+            style={{ transform: "translateZ(0)", willChange: "opacity" }}
+            animate={{ opacity: [0.18, 0.32, 0.18] }}
             transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div
-            className="absolute -bottom-1/3 -right-1/4 h-[60vh] w-[60vh] rounded-full bg-[#E60012] blur-[140px]"
-            animate={{ scale: [1.1, 1, 1.1], opacity: [0.12, 0.26, 0.12] }}
+            className="absolute -bottom-1/3 -right-1/4 h-[60vh] w-[60vh] rounded-full bg-[#E60012] blur-[120px]"
+            style={{ transform: "translateZ(0)", willChange: "opacity" }}
+            animate={{ opacity: [0.12, 0.26, 0.12] }}
             transition={{ duration: 11, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
           />
           {/* Racing speed lines */}
