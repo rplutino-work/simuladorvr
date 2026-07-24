@@ -1,7 +1,10 @@
 package com.simuladorvr.tablet;
 
+import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -11,6 +14,8 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import com.getcapacitor.BridgeActivity;
@@ -44,6 +49,8 @@ public class MainActivity extends BridgeActivity {
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setImmersive();
+        setupKiosk();      // whitelist this app for lock-task if we're Device Owner
+        startKioskLock();  // enter lock-task (hides bars, blocks exit) if permitted
 
         // Kiosk: the moment the system bars reappear (edge swipe, dialog, etc.)
         // re-hide them immediately, so the Android toolbar is never left visible.
@@ -66,6 +73,40 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         setImmersive();
+        startKioskLock();
+    }
+
+    /**
+     * If this app is the Device Owner, whitelist it for lock-task and configure
+     * lock-task to hide EVERYTHING (nav bar, status bar, home, recents). This is
+     * what screen pinning cannot do — pinning forces the nav bar to stay visible.
+     * No-op when not Device Owner, so a normal install just behaves as before.
+     */
+    private void setupKiosk() {
+        try {
+            DevicePolicyManager dpm =
+                (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm == null || !dpm.isDeviceOwnerApp(getPackageName())) return;
+            ComponentName admin = new ComponentName(this, AdminReceiver.class);
+            dpm.setLockTaskPackages(admin, new String[]{ getPackageName() });
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // FEATURE_NONE = no system UI at all → nav + status bars hidden.
+                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /** Enters lock-task mode if the app is permitted (i.e. Device Owner set it up). */
+    private void startKioskLock() {
+        try {
+            DevicePolicyManager dpm =
+                (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm == null || !dpm.isLockTaskPermitted(getPackageName())) return;
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null && am.getLockTaskModeState() == ActivityManager.LOCK_TASK_MODE_NONE) {
+                startLockTask();
+            }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     @Override
@@ -123,15 +164,29 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void setImmersive() {
-        View decorView = getWindow().getDecorView();
-        decorView.setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        );
+        // Android 11+ (API 30): the deprecated SYSTEM_UI_FLAG_* no longer hide
+        // the bars reliably (on A14 a lone Back button lingers). Use the modern
+        // WindowInsetsController, which hides status + nav bars entirely and
+        // only shows them transiently on an edge swipe.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.hide(WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            View decorView = getWindow().getDecorView();
+            decorView.setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            );
+        }
     }
 
     public class TVBridge {
@@ -280,5 +335,25 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void screenOn() { turnOn(); }
+
+        /**
+         * Escape hatch: leaves lock-task and relinquishes Device Owner so the
+         * tablet returns to a normal device (no factory reset needed). Callable
+         * from the WebView (e.g. a hidden admin gesture) if we ever need to
+         * un-kiosk a tablet in the field.
+         */
+        @JavascriptInterface
+        public void exitKiosk() {
+            runOnUiThread(() -> {
+                try {
+                    stopLockTask();
+                    DevicePolicyManager dpm = (DevicePolicyManager)
+                        getSystemService(Context.DEVICE_POLICY_SERVICE);
+                    if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
+                        dpm.clearDeviceOwnerApp(getPackageName());
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+            });
+        }
     }
 }
