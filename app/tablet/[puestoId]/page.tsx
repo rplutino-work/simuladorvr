@@ -184,6 +184,10 @@ export default function TabletPage() {
   const screensaverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const directTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const directPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Mirror of `state` for interval closures that must read the latest screen
+  // without being re-created on every transition.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Auto-reload on new deploys, but never while the tablet is doing something
   // that a reload would interrupt — a payment, a QR on screen, or a live
@@ -330,6 +334,42 @@ export default function TabletPage() {
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puestoId]);
+
+  // ── Global session sync ─────────────────────────────────────────────────
+  // No matter what idle/waiting screen we're on, if the backend reports an
+  // active session for this puesto, jump straight to it. This is the safety net
+  // that keeps the tablet "al unísono" with the payment: it covers a webhook
+  // that lands after the QR timed out (tablet already back on the price list),
+  // a slow/lost webhook later reconciled, or a session started elsewhere.
+  useEffect(() => {
+    if (!puestoId) return;
+    const SYNCABLE = [
+      "screensaver", "choose_duration", "direct_loading",
+      "direct_qr", "direct_confirm_cancel", "direct_waiting", "error",
+    ];
+    const sync = async () => {
+      if (!SYNCABLE.includes(stateRef.current)) return;
+      try {
+        const res = await fetch(`/api/tablet/${puestoId}/status`);
+        const data = await res.json();
+        if (data.session) {
+          stopDirectTimers();
+          setDirectUrl("");
+          setDirectBookingId(null);
+          setDirectSelection(null);
+          setSession(data.session);
+          setTotalMs(data.session.duration * 60 * 1000);
+          startCountdown(data.session.endTime, data.session.duration);
+          setState(data.session.remainingMs <= WARNING_MS ? "warning" : "active");
+        }
+      } catch {
+        // network flap — keep trying
+      }
+    };
+    const id = setInterval(sync, 4000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puestoId, startCountdown]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
