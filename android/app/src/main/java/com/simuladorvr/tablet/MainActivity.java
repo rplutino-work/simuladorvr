@@ -11,6 +11,8 @@ import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
@@ -53,6 +55,7 @@ public class MainActivity extends BridgeActivity {
         setImmersive();
         setupKiosk();      // whitelist this app for lock-task if we're Device Owner
         startKioskLock();  // enter lock-task (hides bars, blocks exit) if permitted
+        startBootWatchdog(); // win the boot focus race vs the TV launcher
 
         // Kiosk: the moment the system bars reappear (edge swipe, dialog, etc.)
         // re-hide them immediately, so the Android toolbar is never left visible.
@@ -112,6 +115,45 @@ public class MainActivity extends BridgeActivity {
                 admin, home, new ComponentName(this, MainActivity.class));
         } catch (Exception e) { e.printStackTrace(); }
     }
+
+    // On boot the TV launcher (or an OEM fallback home) can win the initial
+    // focus, leaving our app running in the background where it can't enter
+    // lock-task. This watchdog spends the first ~25s repeatedly pulling itself
+    // to the front and locking, until it wins — then stops (so it never fights
+    // the admin escape hatch later on).
+    private final Handler kioskHandler = new Handler(Looper.getMainLooper());
+    private long kioskWatchUntil = 0;
+
+    private void startBootWatchdog() {
+        kioskWatchUntil = System.currentTimeMillis() + 25_000;
+        kioskHandler.removeCallbacks(kioskWatchRunnable);
+        kioskHandler.postDelayed(kioskWatchRunnable, 1000);
+    }
+
+    private final Runnable kioskWatchRunnable = new Runnable() {
+        @Override public void run() {
+            boolean locked = false;
+            try {
+                DevicePolicyManager dpm = (DevicePolicyManager)
+                    getSystemService(Context.DEVICE_POLICY_SERVICE);
+                ActivityManager am = (ActivityManager)
+                    getSystemService(Context.ACTIVITY_SERVICE);
+                boolean owner = dpm != null && dpm.isDeviceOwnerApp(getPackageName());
+                locked = am != null
+                    && am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
+                if (owner && !locked) {
+                    Intent i = new Intent(MainActivity.this, MainActivity.class);
+                    i.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(i);
+                    startKioskLock();
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+            if (!locked && System.currentTimeMillis() < kioskWatchUntil) {
+                kioskHandler.postDelayed(this, 1500);
+            }
+        }
+    };
 
     /** Enters lock-task mode if the app is permitted (i.e. Device Owner set it up). */
     private void startKioskLock() {
