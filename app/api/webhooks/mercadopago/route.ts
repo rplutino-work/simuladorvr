@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing payment id" }, { status: 400 });
     }
 
+    // Signature is defense-in-depth, NOT the source of truth: below we re-fetch
+    // the payment from MercadoPago with our secret access token and validate its
+    // external_reference + amount + approved status, so a forged notification
+    // can't activate anything. MP's preference-level notifications (IPN) often
+    // arrive WITHOUT x-signature — rejecting those (401) silently dropped real
+    // paid sessions. So we log a mismatch but never block a genuine payment.
     if (!signatureValid(req, String(paymentId))) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      logger.warn("webhook.signature.invalid", { paymentId: String(paymentId) });
     }
 
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
