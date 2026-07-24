@@ -7,12 +7,14 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -88,11 +90,26 @@ public class MainActivity extends BridgeActivity {
                 (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
             if (dpm == null || !dpm.isDeviceOwnerApp(getPackageName())) return;
             ComponentName admin = new ComponentName(this, AdminReceiver.class);
-            dpm.setLockTaskPackages(admin, new String[]{ getPackageName() });
+            // Whitelist our app PLUS the TV HDMI input services, so that on the
+            // TV kiosks switchToHdmi1() (showing the PlayStation) still works
+            // while locked. Harmless on tablets where those packages don't exist.
+            dpm.setLockTaskPackages(admin, new String[]{
+                getPackageName(),
+                "com.mediatek.tvinput",
+                "com.google.android.tv.inputplayer"
+            });
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 // FEATURE_NONE = no system UI at all → nav + status bars hidden.
                 dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE);
             }
+            // Make this app the default HOME, so it auto-starts on boot (Google
+            // TV boots to its own launcher otherwise) and Home always returns
+            // here. Persistent-preferred survives reboots.
+            IntentFilter home = new IntentFilter(Intent.ACTION_MAIN);
+            home.addCategory(Intent.CATEGORY_HOME);
+            home.addCategory(Intent.CATEGORY_DEFAULT);
+            dpm.addPersistentPreferredActivity(
+                admin, home, new ComponentName(this, MainActivity.class));
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -161,6 +178,41 @@ public class MainActivity extends BridgeActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) setImmersive();
+    }
+
+    // ── Admin escape hatch ───────────────────────────────────────────────────
+    // Pressing BACK 5 times quickly leaves lock-task for a moment and opens the
+    // Android Settings, so an operator with the remote can configure the device
+    // (WiFi, etc.) without being permanently trapped by the kiosk. Returning to
+    // the app re-locks it (onResume → startKioskLock).
+    private long lastBackMs = 0;
+    private int backTapCount = 0;
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            long now = System.currentTimeMillis();
+            if (now - lastBackMs < 800) backTapCount++; else backTapCount = 1;
+            lastBackMs = now;
+            if (backTapCount >= 5) {
+                backTapCount = 0;
+                openSettings();
+            }
+            return true; // swallow Back so it never navigates/exits the kiosk
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    /** Temporarily leaves the kiosk lock and opens Android Settings. */
+    private void openSettings() {
+        runOnUiThread(() -> {
+            try {
+                stopLockTask();
+                Intent i = new Intent(Settings.ACTION_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+            } catch (Exception e) { e.printStackTrace(); }
+        });
     }
 
     private void setImmersive() {
@@ -350,6 +402,11 @@ public class MainActivity extends BridgeActivity {
                     DevicePolicyManager dpm = (DevicePolicyManager)
                         getSystemService(Context.DEVICE_POLICY_SERVICE);
                     if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
+                        ComponentName admin = new ComponentName(
+                            MainActivity.this, AdminReceiver.class);
+                        // Restore the real launcher before relinquishing ownership.
+                        dpm.clearPackagePersistentPreferredActivities(
+                            admin, getPackageName());
                         dpm.clearDeviceOwnerApp(getPackageName());
                     }
                 } catch (Exception e) { e.printStackTrace(); }

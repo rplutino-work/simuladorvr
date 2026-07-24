@@ -28,6 +28,15 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
 
+            <!-- HOME so a Device Owner kiosk can be made the default launcher and
+                 auto-start on boot (Google TV otherwise boots to its own
+                 launcher; a BootReceiver alone is unreliable there). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
         </activity>
 
         <receiver
