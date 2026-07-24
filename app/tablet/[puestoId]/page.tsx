@@ -961,12 +961,17 @@ export default function TabletPage() {
         {state === "input" && (
           <motion.div
             key="input"
-            className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 py-4 overflow-y-auto"
+            className="absolute inset-0 overflow-y-auto"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.35 }}
           >
+            {/* min-h-full + justify-center: centra cuando entra, y cuando el
+                contenido es más alto que la pantalla (tablet + barra de nav
+                visible) hace scroll desde arriba SIN cortar el título. Padding
+                extra arriba/abajo para no quedar bajo la status/nav bar. */}
+            <div className="min-h-full flex flex-col items-center justify-center gap-4 px-6 pt-10 pb-24">
             {/* Top: Back button + Header + Code Display */}
             <div className="w-full max-w-3xl text-center pt-2 relative">
               <button
@@ -1105,6 +1110,7 @@ export default function TabletPage() {
                   </>
                 );
               })()}
+            </div>
             </div>
           </motion.div>
         )}
