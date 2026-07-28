@@ -36,12 +36,25 @@ const BOT_PATTERNS = [
 // ── In-memory fixed-window rate limiter ──────────────────────────────────────
 // Best-effort only: each edge instance keeps its own Map (not shared globally),
 // and it resets on cold start. Enough to blunt a single abusive source.
+//
+// Limits are deliberately GENEROUS because of the venue's shared public IP
+// (NAT): many customers browse at the same time from one IP, and Next.js
+// prefetch multiplies page requests — a tight limit would 429 real people.
+// A scraper/flood does orders of magnitude more, so these still catch abuse.
+// Tune without a redeploy via env (RATE_LIMIT_API / RATE_LIMIT_PAGE), and
+// bypass the venue entirely by putting its IP(s) in RATE_LIMIT_WHITELIST.
 type Bucket = { count: number; reset: number };
 const buckets = new Map<string, Bucket>();
 const MAX_ENTRIES = 5000;
 const WINDOW_MS = 60_000;
-const API_LIMIT = 200; // per IP / minute for API (and any proxy) routes
-const PAGE_LIMIT = 60; // per IP / minute for page requests
+const API_LIMIT = Number(process.env.RATE_LIMIT_API) || 1500; // per IP / minute, API (+ proxy) routes
+const PAGE_LIMIT = Number(process.env.RATE_LIMIT_PAGE) || 800; // per IP / minute, page requests
+const WHITELIST = new Set(
+  (process.env.RATE_LIMIT_WHITELIST ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
 
 function overLimit(key: string, limit: number): boolean {
   const now = Date.now();
@@ -117,10 +130,14 @@ export async function middleware(req: NextRequest) {
     // 3. Generic bot-like signature (unless a whitelisted good bot) → 429.
     if (!isGoodBot && BOT_PATTERNS.some((p) => ua.includes(p))) return deny(429, "Too Many Requests");
 
-    // 4. Per-IP rate limit: 200/min for API (+ any proxy) routes, 60/min for pages.
-    const isApi = pathname.startsWith("/api/");
-    const key = `${clientIp(req)}:${isApi ? "a" : "p"}`;
-    if (overLimit(key, isApi ? API_LIMIT : PAGE_LIMIT)) return deny(429, "Too Many Requests");
+    // 4. Per-IP rate limit — generous defaults; whitelisted IPs (e.g. the
+    //    venue's NAT gateway) bypass it so a full venue is never throttled.
+    const ip = clientIp(req);
+    if (!WHITELIST.has(ip)) {
+      const isApi = pathname.startsWith("/api/");
+      const key = `${ip}:${isApi ? "a" : "p"}`;
+      if (overLimit(key, isApi ? API_LIMIT : PAGE_LIMIT)) return deny(429, "Too Many Requests");
+    }
   }
 
   // ── Existing NextAuth guard for /admin (preserved) ─────────────────────────
