@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Monitor,
@@ -55,10 +56,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const allItems = NAV_GROUPS.flatMap((g) => g.items);
   const currentLabel = allItems.find((i) => i.href === pathname)?.label ?? "Admin";
 
-  function NavList({ onClick }: { onClick?: () => void }) {
+  function NavList({ onClick, scope = "d" }: { onClick?: () => void; scope?: string }) {
     return (
       <div className="space-y-6">
-        {NAV_GROUPS.map((group) => {
+        {NAV_GROUPS.map((group, gi) => {
           const items = group.items.filter((i) => !i.adminOnly || isAdmin);
           if (!items.length) return null;
           return (
@@ -67,12 +68,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {group.title}
               </p>
               <div className="space-y-1">
-                {items.map((item) => {
+                {items.map((item, ii) => {
                   const Icon = item.icon;
                   const active = pathname === item.href;
                   return (
                     <Link key={item.href} href={item.href} onClick={onClick}>
-                      <div
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.04 * (gi * 3 + ii), duration: 0.3 }}
+                        whileTap={{ scale: 0.97 }}
                         className={cn(
                           "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                           active
@@ -81,7 +86,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         )}
                       >
                         {active && (
-                          <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[#E60012]" />
+                          <motion.span
+                            layoutId={`nav-active-${scope}`}
+                            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                            className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[#E60012]"
+                          />
                         )}
                         <Icon
                           className={cn(
@@ -90,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           )}
                         />
                         {item.label}
-                      </div>
+                      </motion.div>
                     </Link>
                   );
                 })}
@@ -105,7 +114,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   function Brand() {
     return (
       <Link href="/admin" className="flex items-center gap-2.5">
-        <Image src="/race-room-rr.png" alt="Race Room" width={36} height={36} className="h-9 w-9 rounded-lg" />
+        <Image src="/race-room-logo.png" alt="Race Room" width={40} height={40} className="h-10 w-10 object-contain" priority />
         <div className="leading-tight">
           <p className="font-racing text-lg tracking-wide text-white">RACE ROOM</p>
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#E60012]">Panel Admin</p>
@@ -158,55 +167,77 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* ── Content area ─────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-[#F6F7F9]/85 px-4 backdrop-blur-md lg:h-16 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-white/85 px-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] backdrop-blur-md lg:h-16 lg:px-8">
           <button
             onClick={() => setMobileOpen(true)}
-            className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-200/60 lg:hidden"
+            className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 active:scale-95 lg:hidden"
             aria-label="Abrir menú"
           >
             <Menu className="h-5 w-5" />
           </button>
+          {/* Brand on mobile (sidebar hidden) */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <Image src="/race-room-logo.png" alt="" width={28} height={28} className="h-7 w-7 object-contain" />
+          </div>
           <div className="min-w-0">
             <p className="hidden text-[11px] font-medium uppercase tracking-wider text-slate-400 lg:block">
               Race Room
             </p>
-            <h1 className="truncate text-base font-semibold text-slate-900 lg:text-lg">{currentLabel}</h1>
+            <motion.h1
+              key={currentLabel}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="truncate text-base font-semibold text-slate-900 lg:text-lg"
+            >
+              {currentLabel}
+            </motion.h1>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 sm:inline-flex">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              En vivo
+              <span className="hidden sm:inline">En vivo</span>
             </span>
           </div>
         </header>
 
         {/* Mobile drawer */}
-        {mobileOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMobileOpen(false)}>
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <aside
-              className="absolute inset-y-0 left-0 flex w-72 flex-col bg-[#0A0A0C] shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex h-16 items-center justify-between border-b border-white/[0.06] px-5">
-                <Brand />
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-lg p-2 text-white/50 transition hover:bg-white/10"
-                  aria-label="Cerrar menú"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <nav className="flex-1 overflow-y-auto px-3 py-5">
-                <NavList onClick={() => setMobileOpen(false)} />
-              </nav>
-              <div className="border-t border-white/[0.06] p-3">
-                <UserFooter />
-              </div>
-            </aside>
-          </div>
-        )}
+        <AnimatePresence>
+          {mobileOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setMobileOpen(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.aside
+                initial={{ x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "-100%" }}
+                transition={{ type: "spring", stiffness: 380, damping: 38 }}
+                className="absolute inset-y-0 left-0 flex w-72 flex-col bg-[#0A0A0C] shadow-2xl"
+              >
+                <div className="flex h-16 items-center justify-between border-b border-white/[0.06] px-5">
+                  <Brand />
+                  <button
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-lg p-2 text-white/50 transition hover:bg-white/10 active:scale-95"
+                    aria-label="Cerrar menú"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <nav className="flex-1 overflow-y-auto px-3 py-5">
+                  <NavList onClick={() => setMobileOpen(false)} scope="m" />
+                </nav>
+                <div className="border-t border-white/[0.06] p-3">
+                  <UserFooter />
+                </div>
+              </motion.aside>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Page content */}
         <main className="flex-1 overflow-x-hidden p-4 lg:p-8">{children}</main>

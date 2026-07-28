@@ -46,7 +46,7 @@ function LoginForm() {
       className="w-full max-w-sm"
     >
       <div className="mb-8 flex flex-col items-center text-center">
-        <Image src="/race-room-rr.png" alt="Race Room" width={64} height={64} className="h-16 w-16 rounded-2xl drop-shadow-[0_0_30px_rgba(230,0,18,0.35)]" priority />
+        <Image src="/race-room-logo.png" alt="Race Room" width={80} height={80} className="h-20 w-20 object-contain drop-shadow-[0_0_40px_rgba(230,0,18,0.4)]" priority />
         <h1 className="font-racing mt-4 text-3xl tracking-wide text-white">RACE ROOM</h1>
         <p className="mt-1 text-xs font-medium uppercase tracking-[0.25em] text-[#E60012]">Panel de control</p>
       </div>

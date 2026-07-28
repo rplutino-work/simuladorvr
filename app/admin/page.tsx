@@ -100,18 +100,21 @@ function DeviceStatusSection() {
     };
   }, []);
 
-  function Dev({ state, icon: Icon }: { state: DeviceState; icon: React.ComponentType<{ className?: string }> }) {
+  function Dev({ state, label, icon: Icon }: { state: DeviceState; label: string; icon: React.ComponentType<{ className?: string }> }) {
     const m = DEVICE_META[state];
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-1.5">
-        <Icon className="h-3.5 w-3.5 text-slate-400" />
-        <span className={`relative flex h-2 w-2`}>
-          {(state === "online" || state === "session") && (
-            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${m.dot} opacity-60`} />
-          )}
-          <span className={`relative inline-flex h-2 w-2 rounded-full ${m.dot}`} />
+      <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-slate-100 bg-slate-50/70 px-2 py-1.5">
+        <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <span className="text-[11px] font-medium text-slate-500">{label}</span>
+        <span className="ml-auto flex items-center gap-1">
+          <span className="relative flex h-2 w-2">
+            {(state === "online" || state === "session") && (
+              <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${m.dot} opacity-60`} />
+            )}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${m.dot}`} />
+          </span>
+          <span className={`text-[11px] font-semibold ${m.text}`}>{m.label}</span>
         </span>
-        <span className={`text-xs font-medium ${m.text}`}>{m.label}</span>
       </div>
     );
   }
@@ -123,22 +126,28 @@ function DeviceStatusSection() {
       ) : rows.length === 0 ? (
         <p className="text-sm text-slate-400">Sin puestos activos</p>
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          {rows.map((row) => (
-            <div key={row.puestoId} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3.5 py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-800">{row.puestoName}</span>
+        <div className="space-y-2.5">
+          {rows.map((row, i) => (
+            <motion.div
+              key={row.puestoId}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="rounded-xl border border-slate-100 p-3"
+            >
+              <div className="mb-2.5 flex items-center gap-2">
+                <span className="truncate text-sm font-semibold text-slate-800">{row.puestoName}</span>
                 {row.hasActiveSession && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                    Sesión
+                  <span className="ml-auto shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                    En sesión
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <Dev state={deviceState(row.tabletLastSeen, nowMs, row.hasActiveSession, false)} icon={Tablet} />
-                <Dev state={deviceState(row.tvLastSeen, nowMs, row.hasActiveSession, true)} icon={Tv} />
+              <div className="grid grid-cols-2 gap-2">
+                <Dev label="Tablet" state={deviceState(row.tabletLastSeen, nowMs, row.hasActiveSession, false)} icon={Tablet} />
+                <Dev label="TV" state={deviceState(row.tvLastSeen, nowMs, row.hasActiveSession, true)} icon={Tv} />
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
