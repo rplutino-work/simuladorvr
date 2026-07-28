@@ -2,22 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Activity, DollarSign, CalendarClock, Trophy, Tablet, Tv } from "lucide-react";
+import { Panel } from "@/components/admin/ui";
+import { StatCard } from "@/components/admin/ui";
+import { AreaChart, BarChart, Donut, HourlyBars } from "@/components/admin/charts";
 
 type Metrics = {
   activeBookingsCount: number;
   revenueToday: number;
   revenueMonth: number;
+  totalBookings: number;
   mostUsedPuesto: { name: string; count: number } | null;
   usagePerPuesto: { name: string; count: number }[];
   bookingsByDuration: { duration: number; count: number }[];
   hourlyHeatmap: { hour: number; count: number }[];
+  dailySeries: { date: string; revenue: number; count: number }[];
+  statusBreakdown: { status: string; count: number }[];
 };
 
 type DeviceRow = {
@@ -29,54 +29,48 @@ type DeviceRow = {
   tvLastSeen: string | null;
 };
 
-// A device is considered online if it pinged within this window. Devices ping
-// every 15s, so this tolerates ~2 missed beats before flipping to offline.
 const DEVICE_OFFLINE_MS = 45 * 1000;
-
 type DeviceState = "online" | "offline" | "never" | "session";
 
-function deviceState(
-  lastSeen: string | null,
-  nowMs: number,
-  inSession: boolean,
-  isTv: boolean
-): DeviceState {
-  // On the TV, an active session means it's on the PlayStation HDMI input and
-  // the WebView is frozen — silence is expected, so report "session" not offline.
+function deviceState(lastSeen: string | null, nowMs: number, inSession: boolean, isTv: boolean): DeviceState {
   if (isTv && inSession) return "session";
   if (!lastSeen) return "never";
-  const age = nowMs - new Date(lastSeen).getTime();
-  return age <= DEVICE_OFFLINE_MS ? "online" : "offline";
+  return nowMs - new Date(lastSeen).getTime() <= DEVICE_OFFLINE_MS ? "online" : "offline";
 }
 
-const DEVICE_LABELS: Record<DeviceState, string> = {
-  online: "Online",
-  offline: "Offline",
-  never: "Sin señal",
-  session: "En sesión (HDMI)",
+const DEVICE_META: Record<DeviceState, { label: string; dot: string; text: string }> = {
+  online: { label: "Online", dot: "bg-emerald-500", text: "text-emerald-600" },
+  offline: { label: "Offline", dot: "bg-red-500", text: "text-red-600" },
+  never: { label: "Sin señal", dot: "bg-slate-300", text: "text-slate-400" },
+  session: { label: "En sesión", dot: "bg-amber-500", text: "text-amber-600" },
 };
 
-const DEVICE_DOT: Record<DeviceState, string> = {
-  online: "bg-green-500",
-  offline: "bg-red-500",
-  never: "bg-slate-300",
-  session: "bg-amber-500",
-};
-
-function DeviceBadge({ state }: { state: DeviceState }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-sm">
-      <span
-        className={`h-2.5 w-2.5 rounded-full ${DEVICE_DOT[state]} ${
-          state === "online" || state === "session" ? "animate-pulse" : ""
-        }`}
-      />
-      <span className={state === "offline" ? "font-medium text-red-600" : "text-slate-600"}>
-        {DEVICE_LABELS[state]}
-      </span>
-    </span>
-  );
+function fmtMoney(n: number) {
+  return `$${Math.round(n).toLocaleString("es-AR")}`;
 }
+
+function pctChange(curr: number, prev: number): number | null {
+  if (prev === 0) return curr === 0 ? 0 : null;
+  return Math.round(((curr - prev) / prev) * 100);
+}
+
+const ES_DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+function dayLabel(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return `${ES_DAYS[date.getUTCDay()]} ${d}`;
+}
+
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  PENDING: { label: "Pendiente", color: "#f59e0b" },
+  PAID: { label: "Pagado", color: "#3b82f6" },
+  ACTIVE: { label: "En curso", color: "#10b981" },
+  FINISHED: { label: "Finalizado", color: "#94a3b8" },
+  EXPIRED: { label: "Expirado", color: "#e11d48" },
+  CANCELLED: { label: "Cancelado", color: "#64748b" },
+};
+
+const DURATION_COLORS = ["#E60012", "#ff6b76", "#fca5a5", "#fecdd3"];
 
 function DeviceStatusSection() {
   const [rows, setRows] = useState<DeviceRow[]>([]);
@@ -97,7 +91,6 @@ function DeviceStatusSection() {
     };
     load();
     const poll = setInterval(load, 5000);
-    // Local clock ticks every second so badges expire to offline live between fetches.
     setNowMs(Date.now());
     const clock = setInterval(() => setNowMs(Date.now()), 1000);
     return () => {
@@ -107,52 +100,49 @@ function DeviceStatusSection() {
     };
   }, []);
 
+  function Dev({ state, icon: Icon }: { state: DeviceState; icon: React.ComponentType<{ className?: string }> }) {
+    const m = DEVICE_META[state];
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-1.5">
+        <Icon className="h-3.5 w-3.5 text-slate-400" />
+        <span className={`relative flex h-2 w-2`}>
+          {(state === "online" || state === "session") && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${m.dot} opacity-60`} />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${m.dot}`} />
+        </span>
+        <span className={`text-xs font-medium ${m.text}`}>{m.label}</span>
+      </div>
+    );
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Estado de dispositivos</CardTitle>
-        <CardDescription>Tablets y TVs por puesto (en vivo)</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!loaded ? (
-          <p className="text-sm text-slate-500">Cargando…</p>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-slate-500">Sin puestos activos</p>
-        ) : (
-          <div className="space-y-2">
-            {rows.map((row) => (
-              <div
-                key={row.puestoId}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-900">{row.puestoName}</span>
-                  {row.hasActiveSession && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      En sesión
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-wide text-slate-400">Tablet</span>
-                    <DeviceBadge
-                      state={deviceState(row.tabletLastSeen, nowMs, row.hasActiveSession, false)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-wide text-slate-400">TV</span>
-                    <DeviceBadge
-                      state={deviceState(row.tvLastSeen, nowMs, row.hasActiveSession, true)}
-                    />
-                  </div>
-                </div>
+    <Panel title="Estado de dispositivos" description="Tablets y TVs por puesto — en vivo">
+      {!loaded ? (
+        <p className="text-sm text-slate-400">Cargando…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-400">Sin puestos activos</p>
+      ) : (
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.puestoId} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3.5 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-slate-800">{row.puestoName}</span>
+                {row.hasActiveSession && (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                    Sesión
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <div className="flex items-center gap-2">
+                <Dev state={deviceState(row.tabletLastSeen, nowMs, row.hasActiveSession, false)} icon={Tablet} />
+                <Dev state={deviceState(row.tvLastSeen, nowMs, row.hasActiveSession, true)} icon={Tv} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -168,155 +158,113 @@ export default function AdminDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
+  if (loading || !metrics) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-[#E60012]" />
       </div>
     );
   }
 
+  const series = metrics.dailySeries ?? [];
+  const revSpark = series.map((d) => d.revenue);
+  const bookSpark = series.map((d) => d.count);
+  const todayRev = series[series.length - 1]?.revenue ?? metrics.revenueToday;
+  const yestRev = series[series.length - 2]?.revenue ?? 0;
+  const todayBook = series[series.length - 1]?.count ?? 0;
+  const yestBook = series[series.length - 2]?.count ?? 0;
+
+  const usage = [...(metrics.usagePerPuesto ?? [])].sort((a, b) => b.count - a.count).map((p) => ({ label: p.name, value: p.count }));
+  const durations = (metrics.bookingsByDuration ?? [])
+    .sort((a, b) => a.duration - b.duration)
+    .map((d, i) => ({ label: `${d.duration} min`, value: d.count, color: DURATION_COLORS[i % DURATION_COLORS.length] }));
+  const statuses = (metrics.statusBreakdown ?? [])
+    .map((s) => ({ label: STATUS_META[s.status]?.label ?? s.status, value: s.count, color: STATUS_META[s.status]?.color ?? "#94a3b8" }))
+    .sort((a, b) => b.value - a.value);
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-slate-600">
-          Resumen del negocio en tiempo real
-        </p>
+    <div className="space-y-6">
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Reservas activas"
+          value={metrics.activeBookingsCount}
+          sub="en curso ahora"
+          icon={Activity}
+          delay={0}
+        />
+        <StatCard
+          label="Ingresos hoy"
+          value={fmtMoney(metrics.revenueToday)}
+          trend={pctChange(todayRev, yestRev)}
+          sub="vs ayer"
+          spark={revSpark}
+          accent
+          delay={0.05}
+        />
+        <StatCard
+          label="Ingresos del mes"
+          value={fmtMoney(metrics.revenueMonth)}
+          sub="acumulado"
+          icon={DollarSign}
+          delay={0.1}
+        />
+        <StatCard
+          label="Reservas hoy"
+          value={todayBook}
+          trend={pctChange(todayBook, yestBook)}
+          sub="vs ayer"
+          spark={bookSpark}
+          icon={CalendarClock}
+          delay={0.15}
+        />
       </div>
 
-      <DeviceStatusSection />
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          {
-            title: "Reservas activas",
-            value: metrics?.activeBookingsCount ?? 0,
-            desc: "En curso ahora",
-          },
-          {
-            title: "Ingresos hoy",
-            value: `$${(metrics?.revenueToday ?? 0).toLocaleString("es-AR")}`,
-            desc: "ARS",
-          },
-          {
-            title: "Ingresos este mes",
-            value: `$${(metrics?.revenueMonth ?? 0).toLocaleString("es-AR")}`,
-            desc: "Últimos 30 días",
-          },
-          {
-            title: "Puesto más usado",
-            value: metrics?.mostUsedPuesto?.name ?? "—",
-            desc: metrics?.mostUsedPuesto
-              ? `${metrics.mostUsedPuesto.count} reservas`
-              : "Sin datos",
-          },
-        ].map((item, i) => (
-          <motion.div
-            key={item.title}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
+      {/* Trend + device status */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Panel
+            title="Ingresos — últimos 14 días"
+            description="Pagos aprobados por día (ARS)"
+            action={
+              <div className="text-right">
+                <p className="text-2xl font-bold tracking-tight text-slate-900">{fmtMoney(series.reduce((s, d) => s + d.revenue, 0))}</p>
+                <p className="text-xs text-slate-400">total 14 días</p>
+              </div>
+            }
           >
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>{item.title}</CardDescription>
-                <CardTitle className="text-2xl">{item.value}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-slate-500">{item.desc}</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+            {series.length ? (
+              <AreaChart data={series.map((d) => ({ label: dayLabel(d.date), value: d.revenue }))} valueFormat={fmtMoney} />
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-400">Sin datos todavía</p>
+            )}
+          </Panel>
+        </div>
+        <DeviceStatusSection />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Uso por puesto</CardTitle>
-              <CardDescription>Reservas por simulador</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {(metrics?.usagePerPuesto ?? []).map((p) => (
-                  <div key={p.name} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{p.name}</span>
-                    <span className="text-sm text-slate-600">{p.count}</span>
-                  </div>
-                ))}
-                {(!metrics?.usagePerPuesto || metrics.usagePerPuesto.length === 0) && (
-                  <p className="text-sm text-slate-500">Sin datos</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Duración más elegida</CardTitle>
-              <CardDescription>Reservas por duración</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {(metrics?.bookingsByDuration ?? []).map((d) => (
-                  <div key={d.duration} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{d.duration} min</span>
-                    <span className="text-sm text-slate-600">{d.count}</span>
-                  </div>
-                ))}
-                {(!metrics?.bookingsByDuration || metrics.bookingsByDuration.length === 0) && (
-                  <p className="text-sm text-slate-500">Sin datos</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      {/* Usage + duration + status */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Panel title="Uso por simulador" description="Reservas totales">
+          <BarChart data={usage} />
+        </Panel>
+        <Panel title="Duración elegida" description="Distribución de turnos">
+          {durations.length ? (
+            <Donut data={durations} centerLabel="turnos" centerValue={durations.reduce((s, d) => s + d.value, 0)} />
+          ) : (
+            <p className="text-sm text-slate-400">Sin datos</p>
+          )}
+        </Panel>
+        <Panel title="Estado de reservas" description={`${metrics.totalBookings} en total`}>
+          {statuses.length ? <Donut data={statuses} centerLabel="reservas" centerValue={metrics.totalBookings} /> : <p className="text-sm text-slate-400">Sin datos</p>}
+        </Panel>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle>Mapa de calor horario</CardTitle>
-            <CardDescription>Reservas por hora del día (últimos 30 días)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-1 overflow-x-auto pb-2">
-              {(metrics?.hourlyHeatmap ?? []).map((h) => {
-                const max = Math.max(...(metrics?.hourlyHeatmap?.map((x) => x.count) ?? [1]), 1);
-                const opacity = h.count / max;
-                return (
-                  <div
-                    key={h.hour}
-                    className="flex flex-1 min-w-[20px] flex-col items-center gap-1"
-                    title={`${h.hour}:00 - ${h.count} reservas`}
-                  >
-                    <div
-                      className="w-full rounded-t bg-slate-900 transition"
-                      style={{ height: `${Math.max(opacity * 80, 4)}px`, opacity: 0.3 + opacity * 0.7 }}
-                    />
-                    <span className="text-[10px] text-slate-500">{h.hour}h</span>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Hourly heatmap */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <Panel title="Actividad por hora" description="Reservas por hora del día — últimos 30 días">
+          <HourlyBars data={metrics.hourlyHeatmap ?? []} />
+        </Panel>
       </motion.div>
     </div>
   );

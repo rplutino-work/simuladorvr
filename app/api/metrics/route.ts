@@ -24,6 +24,9 @@ export async function GET(req: NextRequest) {
   );
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
+  // 14-day window for the trend chart (in AR time).
+  const fourteenDaysAgoUTC = new Date(startOfTodayUTC.getTime() - 13 * 24 * 60 * 60 * 1000);
+
   const [
     activeBookingsCount,
     revenueToday,
@@ -31,6 +34,8 @@ export async function GET(req: NextRequest) {
     bookingsByPuesto,
     bookingsByDuration,
     hourlyData,
+    recentPayments,
+    statusGroups,
   ] = await Promise.all([
     prisma.booking.count({ where: { status: "ACTIVE" } }),
     prisma.payment.aggregate({
@@ -64,6 +69,13 @@ export async function GET(req: NextRequest) {
       },
       select: { startTime: true },
     }),
+    // Approved payments in the last 14 days for the daily revenue trend.
+    prisma.payment.findMany({
+      where: { status: "approved", createdAt: { gte: fourteenDaysAgoUTC } },
+      select: { amount: true, createdAt: true },
+    }),
+    // Booking status distribution (all-time) for the donut.
+    prisma.booking.groupBy({ by: ["status"], _count: { id: true } }),
   ]);
 
   const puestoNames = await prisma.puesto.findMany({
@@ -90,13 +102,47 @@ export async function GET(req: NextRequest) {
     ).length,
   }));
 
+  // Daily revenue + payment count for the last 14 days, keyed by AR calendar day.
+  const dayKey = (d: Date) => {
+    const ar = new Date(d.getTime() - AR_OFFSET);
+    return `${ar.getUTCFullYear()}-${String(ar.getUTCMonth() + 1).padStart(2, "0")}-${String(ar.getUTCDate()).padStart(2, "0")}`;
+  };
+  const dailyMap = new Map<string, { revenue: number; count: number }>();
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(startOfTodayUTC.getTime() - i * 24 * 60 * 60 * 1000);
+    dailyMap.set(dayKey(d), { revenue: 0, count: 0 });
+  }
+  for (const p of recentPayments) {
+    const k = dayKey(p.createdAt);
+    const slot = dailyMap.get(k);
+    if (slot) {
+      slot.revenue += (p.amount ?? 0) / 100;
+      slot.count += 1;
+    }
+  }
+  const dailySeries = Array.from(dailyMap.entries()).map(([date, v]) => ({
+    date,
+    revenue: v.revenue,
+    count: v.count,
+  }));
+
+  const statusBreakdown = statusGroups.map((g) => ({
+    status: g.status,
+    count: g._count.id,
+  }));
+
+  const totalBookings = statusBreakdown.reduce((s, g) => s + g.count, 0);
+
   return NextResponse.json({
     activeBookingsCount,
     revenueToday: (revenueToday._sum.amount ?? 0) / 100,
     revenueMonth: (revenueMonth._sum.amount ?? 0) / 100,
+    totalBookings,
     mostUsedPuesto: usagePerPuesto.sort((a, b) => b.count - a.count)[0] ?? null,
     usagePerPuesto,
     bookingsByDuration: durationCounts,
     hourlyHeatmap,
+    dailySeries,
+    statusBreakdown,
   });
 }

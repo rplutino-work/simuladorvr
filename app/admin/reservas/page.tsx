@@ -661,7 +661,7 @@ export default function ReservasPage() {
             <button
               key={status}
               onClick={() => setStatusFilter(status === statusFilter ? "all" : status)}
-              className={`rounded-xl border p-3 text-left transition hover:bg-slate-50 ${statusFilter === status ? "border-slate-900 bg-slate-50 ring-1 ring-slate-900" : "border-slate-200"}`}
+              className={`rounded-xl border p-3 text-left transition hover:bg-slate-50 ${statusFilter === status ? "border-[#E60012] bg-[#E60012]/[0.04] ring-1 ring-[#E60012]/40" : "border-slate-200"}`}
             >
               <p className="text-lg font-bold text-slate-900">{count}</p>
               <p className="text-xs text-slate-500 mt-0.5">{label}</p>
