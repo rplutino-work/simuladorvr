@@ -3,6 +3,7 @@ import { updateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getBusinessSettings } from "@/lib/availability";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 const updateSettingsSchema = z.object({
@@ -17,6 +18,11 @@ const updateSettingsSchema = z.object({
   emailFrom: z.string().max(200).nullable().optional(),
   cancelMode: z.enum(["MANUAL", "AUTOMATIC"]).optional(),
   contactPhone: z.string().max(20).nullable().optional(),
+  // Group discount
+  groupDiscountEnabled: z.boolean().optional(),
+  groupDiscountTiers: z.record(z.string(), z.number().min(0).max(100)).nullable().optional(),
+  groupDiscountFrom: z.string().datetime().nullable().optional(),
+  groupDiscountTo: z.string().datetime().nullable().optional(),
 });
 
 /**
@@ -76,9 +82,19 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
+  // Split out the fields that need coercion (dates → Date, Json null handling).
+  const { groupDiscountFrom, groupDiscountTo, groupDiscountTiers, ...rest } = parsed.data;
+  const updateData: Prisma.BusinessSettingsUpdateInput = { ...rest };
+  if (groupDiscountFrom !== undefined)
+    updateData.groupDiscountFrom = groupDiscountFrom ? new Date(groupDiscountFrom) : null;
+  if (groupDiscountTo !== undefined)
+    updateData.groupDiscountTo = groupDiscountTo ? new Date(groupDiscountTo) : null;
+  if (groupDiscountTiers !== undefined)
+    updateData.groupDiscountTiers = groupDiscountTiers === null ? Prisma.JsonNull : groupDiscountTiers;
+
   const updated = await prisma.businessSettings.update({
     where: { id: settings.id },
-    data: parsed.data,
+    data: updateData,
   });
   updateTag("settings"); // refresh the cached reader used by the kiosks
   return NextResponse.json(updated);

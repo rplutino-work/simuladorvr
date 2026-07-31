@@ -49,6 +49,11 @@ model BusinessSettings {
   // Cancellation & refund settings
   cancelMode            String   @default("MANUAL") // "MANUAL" | "AUTOMATIC"
   contactPhone          String?  // WhatsApp number for manual refunds (e.g. 5491112345678)
+  // Group discount: progressive % off when booking several puestos together.
+  groupDiscountEnabled  Boolean  @default(false)
+  groupDiscountTiers     Json?   // { "2":5, "3":10, "4":15, "5":20 } — puestos → % off
+  groupDiscountFrom     DateTime? // promo validity start (null = always)
+  groupDiscountTo       DateTime? // promo validity end (null = always)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -128,6 +133,8 @@ model Booking {
   customerName  String?        // Optional: walk-in customer name
   notes         String?        // Admin internal notes
   cancelToken   String?        @unique // UUID token for self-service cancellation URL
+  groupId       String?        // links bookings reserved together as a group
+  groupCode     String?        // shared access code for the whole group
   createdAt     DateTime       @default(now())
 
   puesto     Puesto         @relation(fields: [puestoId], references: [id], onDelete: Restrict)
@@ -142,6 +149,8 @@ model Booking {
   @@index([puestoId, status]) // tablet/TV status: "active booking for this puesto?"
   @@index([status, endTime]) // cron auto-finish: ACTIVE with endTime < now
   @@index([status, createdAt]) // cron expire: PENDING older than 30 min
+  @@index([groupId]) // fetch/activate all bookings of a group
+  @@index([groupCode]) // look up a group by its shared code
 }
 
 enum BookingStatus {

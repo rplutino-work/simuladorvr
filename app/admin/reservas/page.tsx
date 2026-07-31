@@ -21,7 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  Users,
 } from "lucide-react";
+import { groupDiscountPct } from "@/lib/group-discount";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,6 +57,7 @@ type Puesto = {
   active: boolean;
   price30: number;
   price60: number;
+  price90?: number;
   price120: number;
 };
 
@@ -545,6 +548,186 @@ function WalkInModal({
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Group Modal ─────────────────────────────────────────────────────────────
+function GroupModal({
+  puestos,
+  onClose,
+  onCreated,
+}: {
+  puestos: Puesto[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [settings, setSettings] = useState<{
+    groupDiscountEnabled: boolean;
+    groupDiscountTiers: Record<string, number> | null;
+    groupDiscountFrom: string | null;
+    groupDiscountTo: string | null;
+  } | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [duration, setDuration] = useState<30 | 60 | 120>(60);
+  const [date, setDate] = useState(today);
+  const [time, setTime] = useState("20:00");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<{ groupId: string; groupCode: string; total: number; discountPct: number } | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/settings").then((r) => r.json()).then(setSettings).catch(() => {});
+  }, []);
+
+  const priceKey = `price${duration}` as "price30" | "price60" | "price120";
+  const selPuestos = puestos.filter((p) => sel.has(p.id));
+  const baseTotal = selPuestos.reduce((s, p) => s + (p[priceKey] ?? 0), 0);
+  const pct = settings
+    ? groupDiscountPct(
+        {
+          groupDiscountEnabled: settings.groupDiscountEnabled,
+          groupDiscountTiers: settings.groupDiscountTiers,
+          groupDiscountFrom: settings.groupDiscountFrom ? new Date(settings.groupDiscountFrom) : null,
+          groupDiscountTo: settings.groupDiscountTo ? new Date(settings.groupDiscountTo) : null,
+        },
+        selPuestos.length
+      )
+    : 0;
+  const total = Math.round(baseTotal * (1 - pct / 100));
+  const money = (cents: number) => `$${(cents / 100).toLocaleString("es-AR")}`;
+
+  function toggle(id: string) {
+    const n = new Set(sel);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setSel(n);
+  }
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    if (selPuestos.length < 2) { setError("Elegí al menos 2 puestos"); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const startTime = new Date(`${date}T${time}:00`).toISOString();
+      const res = await fetch("/api/admin/bookings/group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puestoIds: [...sel], duration, startTime, customerName: name || undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "Error al crear el grupo");
+      setDone({ groupId: d.groupId, groupCode: d.groupCode, total: d.total, discountPct: d.discountPct });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function startNow() {
+    if (!done) return;
+    setStarting(true);
+    try {
+      await fetch("/api/admin/bookings/group", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId: done.groupId, action: "start" }),
+      });
+      onCreated();
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <motion.div initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+        className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 p-5">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Users className="h-4 w-4 text-[#E60012]" /> Reserva grupal</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Varios puestos, mismo horario, con descuento por grupo</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+
+        {done ? (
+          <div className="p-6 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+              <CheckCircle className="h-7 w-7 text-emerald-600" />
+            </div>
+            <h3 className="font-semibold text-slate-900">¡Grupo creado!</h3>
+            <p className="mt-1 text-sm text-slate-500">Código del grupo</p>
+            <p className="my-2 font-mono text-4xl font-bold tracking-[0.2em] text-slate-900">{done.groupCode}</p>
+            <p className="text-sm text-slate-600">{selPuestos.length} puestos · {done.discountPct}% off · <b>{money(done.total)}</b></p>
+            <div className="mt-5 flex gap-2">
+              <Button className="flex-1 bg-[#E60012] text-white hover:bg-[#c00010]" onClick={startNow} disabled={starting}>
+                <Play className="mr-2 h-4 w-4" /> {starting ? "Iniciando…" : "Iniciar grupo ahora"}
+              </Button>
+              <Button variant="outline" onClick={onCreated}>Listo</Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={create} className="space-y-4 p-5">
+            <div>
+              <Label>Puestos (elegí 2 o más)</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {puestos.map((p) => {
+                  const on = sel.has(p.id);
+                  return (
+                    <button type="button" key={p.id} onClick={() => toggle(p.id)}
+                      className={`rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition ${on ? "border-[#E60012] bg-[#E60012]/[0.05] text-slate-900" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+                      {on && <CheckCircle className="mr-1 inline h-3.5 w-3.5 text-[#E60012]" />}{p.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5 col-span-1">
+                <Label>Duración</Label>
+                <select className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" value={duration}
+                  onChange={(e) => setDuration(parseInt(e.target.value, 10) as 30 | 60 | 120)}>
+                  <option value={30}>30 min</option><option value={60}>60 min</option><option value={120}>120 min</option>
+                </select>
+              </div>
+              <div className="space-y-1.5"><Label>Fecha</Label><Input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Hora</Label><Input type="time" step={900} value={time} onChange={(e) => setTime(e.target.value)} /></div>
+            </div>
+            <div className="space-y-1.5"><Label>Nombre del grupo (opcional)</Label><Input placeholder="Los pibes" value={name} onChange={(e) => setName(e.target.value)} /></div>
+
+            {/* Resumen de precio */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+              {selPuestos.length < 2 ? (
+                <p className="text-sm text-slate-400">Elegí al menos 2 puestos para ver el precio con descuento.</p>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    {selPuestos.length} puestos · {duration} min
+                    {pct > 0 && <span className="ml-2 rounded-full bg-[#E60012]/10 px-2 py-0.5 text-xs font-semibold text-[#E60012]">-{pct}%</span>}
+                  </div>
+                  <div className="text-right">
+                    {pct > 0 && <span className="mr-2 text-sm text-slate-400 line-through">{money(baseTotal)}</span>}
+                    <span className="text-xl font-bold text-slate-900">{money(total)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" disabled={loading || selPuestos.length < 2} className="flex-1 bg-[#E60012] text-white hover:bg-[#c00010]">
+                {loading ? "Creando…" : `Crear grupo · ${money(total)}`}
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            </div>
+          </form>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function ReservasPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
@@ -552,6 +735,7 @@ export default function ReservasPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showWalkIn, setShowWalkIn] = useState(false);
+  const [showGroup, setShowGroup] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -645,6 +829,11 @@ export default function ReservasPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => setShowGroup(true)} className="shrink-0 border-[#E60012]/30 text-[#E60012] hover:bg-[#E60012]/5">
+            <Users className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Grupo</span>
+            <span className="sm:hidden">Grupo</span>
+          </Button>
           <Button onClick={() => setShowWalkIn(true)} className="shrink-0">
             <Plus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Walk-in / Efectivo</span>
@@ -1042,6 +1231,17 @@ export default function ReservasPage() {
             onClose={() => setShowWalkIn(false)}
             onCreated={() => {
               setShowWalkIn(false);
+              fetchBookings();
+            }}
+          />
+        )}
+        {showGroup && (
+          <GroupModal
+            key="group"
+            puestos={puestos.filter((p) => p.active)}
+            onClose={() => setShowGroup(false)}
+            onCreated={() => {
+              setShowGroup(false);
               fetchBookings();
             }}
           />

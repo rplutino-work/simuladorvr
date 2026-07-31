@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Send, CheckCircle, AlertCircle, Clock, Mail, RotateCcw } from "lucide-react";
+import { Send, CheckCircle, AlertCircle, Clock, Mail, RotateCcw, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -105,6 +105,16 @@ export default function ConfiguracionPage() {
   const [testEmailLoading, setTestEmailLoading] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Group discount
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [groupOk, setGroupOk] = useState(false);
+  const [groupForm, setGroupForm] = useState<{
+    enabled: boolean;
+    tiers: Record<string, number>;
+    from: string;
+    to: string;
+  }>({ enabled: false, tiers: { "2": 5, "3": 10, "4": 15, "5": 20 }, from: "", to: "" });
+
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
@@ -122,6 +132,13 @@ export default function ConfiguracionPage() {
         });
         setEmailForm({ emailEnabled: data.emailEnabled ?? true, emailFrom: data.emailFrom ?? "" });
         setCancelRefundForm({ cancelMode: data.cancelMode ?? "MANUAL", contactPhone: data.contactPhone ?? "" });
+        const toDate = (v: string | null) => (v ? new Date(v).toISOString().slice(0, 10) : "");
+        setGroupForm({
+          enabled: data.groupDiscountEnabled ?? false,
+          tiers: (data.groupDiscountTiers as Record<string, number>) ?? { "2": 5, "3": 10, "4": 15, "5": 20 },
+          from: toDate(data.groupDiscountFrom),
+          to: toDate(data.groupDiscountTo),
+        });
       })
       .catch(() => setSettings(null))
       .finally(() => setLoading(false));
@@ -180,6 +197,31 @@ export default function ConfiguracionPage() {
       console.error(err);
     } finally {
       setSavingCancel(false);
+    }
+  }
+
+  async function handleSaveGroup(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingGroup(true);
+    setGroupOk(false);
+    try {
+      const clean: Record<string, number> = {};
+      for (const [k, v] of Object.entries(groupForm.tiers)) {
+        const n = Number(v);
+        if (n > 0) clean[k] = n;
+      }
+      await patch({
+        groupDiscountEnabled: groupForm.enabled,
+        groupDiscountTiers: clean,
+        groupDiscountFrom: groupForm.from ? new Date(groupForm.from + "T00:00:00").toISOString() : null,
+        groupDiscountTo: groupForm.to ? new Date(groupForm.to + "T23:59:59").toISOString() : null,
+      });
+      setGroupOk(true);
+      setTimeout(() => setGroupOk(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingGroup(false);
     }
   }
 
@@ -271,6 +313,73 @@ export default function ConfiguracionPage() {
                 {savingSchedule ? "Guardando…" : "Guardar horarios"}
               </Button>
               <SavedTag show={scheduleOk} />
+            </div>
+          </form>
+        </Panel>
+      </motion.div>
+
+      {/* Descuentos por grupo */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}>
+        <Panel
+          title={<span className="flex items-center gap-2"><Users className="h-4 w-4 text-[#E60012]" /> Descuentos por grupo</span>}
+          description="Descuento progresivo al reservar varios puestos juntos (mismo horario)"
+        >
+          <form onSubmit={handleSaveGroup} className="space-y-5">
+            <label className="flex items-center gap-3">
+              <Toggle on={groupForm.enabled} onClick={() => setGroupForm({ ...groupForm, enabled: !groupForm.enabled })} />
+              <span className="text-sm font-medium text-slate-700">
+                {groupForm.enabled ? "Descuentos por grupo activados" : "Descuentos por grupo desactivados"}
+              </span>
+            </label>
+
+            <div>
+              <Label className="text-sm text-slate-700">% de descuento según cantidad de puestos</Label>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {["2", "3", "4", "5"].map((n) => (
+                  <div key={n} className="rounded-xl border border-slate-200 p-3 text-center">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{n} puestos</p>
+                    <div className="mt-1.5 flex items-center justify-center gap-1">
+                      <Input
+                        type="number" min={0} max={100}
+                        value={groupForm.tiers[n] ?? 0}
+                        onChange={(e) => setGroupForm({ ...groupForm, tiers: { ...groupForm.tiers, [n]: Number(e.target.value) || 0 } })}
+                        className="h-9 w-16 text-center"
+                      />
+                      <span className="text-lg font-bold text-[#E60012]">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Ejemplo con precio base $10.000/hora */}
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="text-slate-400">Ejemplo (base $10.000/h):</span>
+                {["2", "3", "4", "5"].map((n) => {
+                  const cnt = Number(n);
+                  const pct = Number(groupForm.tiers[n] ?? 0);
+                  const total = Math.round(10000 * cnt * (1 - pct / 100));
+                  return (
+                    <span key={n} className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                      {n}: ${total.toLocaleString("es-AR")}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Vigente desde (opcional)" hint="Vacío = siempre">
+                <Input type="date" value={groupForm.from} onChange={(e) => setGroupForm({ ...groupForm, from: e.target.value })} />
+              </Field>
+              <Field label="Vigente hasta (opcional)" hint="Ideal para la promo de inauguración">
+                <Input type="date" value={groupForm.to} onChange={(e) => setGroupForm({ ...groupForm, to: e.target.value })} />
+              </Field>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={savingGroup} className={RED_BTN}>
+                {savingGroup ? "Guardando…" : "Guardar descuentos"}
+              </Button>
+              <SavedTag show={groupOk} />
             </div>
           </form>
         </Panel>
