@@ -332,6 +332,61 @@ public class MainActivity extends BridgeActivity {
     //      latidos sin sesión reafirmamos IGUAL — así igual echa al juego gratis.
     private volatile int noSessionStreak = 0;
 
+    // ── Anti-fuga AGRESIVO (solo TV): watchdog local rápido ──────────────────
+    // El heartbeat (30s) tardaba ~1 min en echar a la consola sin turno, y en las
+    // TCL el HDMI no dispara onPause (no hay señal instantánea). Este watchdog
+    // corre cada pocos segundos SIN costo de red: si es TV, la pantalla debe estar
+    // prendida y NO hay turno pagado, trae la app al frente (sale del HDMI en ≤3s).
+    // Cuando ya está en la app es no-op: REORDER_TO_FRONT a la instancia top y no
+    // hay onNewIntent → no recarga el WebView ni parpadea.
+    private static final long ANTIFREE_INTERVAL_MS = 3000; // cada 3s
+    // Fin del turno en curso, conocido LOCALMENTE (base elapsedRealtime). Lo setea
+    // scheduleReturn() justo antes de ir a HDMI: es la señal autoritativa de "hay
+    // una partida paga corriendo, NO tocar". 0 = no hay turno local.
+    private volatile long sessionActiveUntilMs = 0;
+    // Respaldo: lo último que dijo el server (hasActiveSession) en el heartbeat.
+    private volatile boolean heartbeatSession = false;
+    // Último shouldBeOn del server (fuera de horario / puesto inactivo → false).
+    private volatile boolean lastShouldBeOn = true;
+    private final Handler antiFreeHandler = new Handler(Looper.getMainLooper());
+    private volatile boolean antiFreeStarted = false;
+
+    /** ¿Hay una partida paga corriendo (según lo local o el último heartbeat)? */
+    private boolean sessionActiveNow() {
+        return SystemClock.elapsedRealtime() < sessionActiveUntilMs || heartbeatSession;
+    }
+
+    private void startAntiFreeWatchdog() {
+        if (antiFreeStarted) return;
+        antiFreeStarted = true;
+        antiFreeHandler.postDelayed(antiFreeRunnable, ANTIFREE_INTERVAL_MS);
+    }
+
+    private final Runnable antiFreeRunnable = new Runnable() {
+        @Override public void run() {
+            try {
+                if ("TV".equals(heartbeatDeviceType) && lastShouldBeOn && !sessionActiveNow()) {
+                    bringAppToFront();
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+            antiFreeHandler.postDelayed(this, ANTIFREE_INTERVAL_MS);
+        }
+    };
+
+    /** Trae la app al frente (liviano, sin WAKEUP). No-op si ya está arriba; saca
+     *  del HDMI si la TV está en la consola. Lo usa el watchdog rápido. */
+    private void bringAppToFront() {
+        runOnUiThread(() -> {
+            try {
+                Intent i = new Intent(MainActivity.this, MainActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(i);
+            } catch (Exception e) { e.printStackTrace(); }
+        });
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -502,6 +557,10 @@ public class MainActivity extends BridgeActivity {
                 // viejo), se asume true. Así el latido NO reafirma cuando la pantalla
                 // debe estar apagada → evita el loop de apagar/prender.
                 boolean shouldBeOn = sb.indexOf("\"shouldBeOn\":false") < 0;
+
+                // Alimenta al watchdog rápido anti-fuga (respaldo del estado local).
+                heartbeatSession = hasSession;
+                lastShouldBeOn = shouldBeOn;
 
                 if (hasSession) {
                     noSessionStreak = 0;            // hay turno → reset, jamás molestar
@@ -787,6 +846,7 @@ public class MainActivity extends BridgeActivity {
             heartbeatPuestoId = puestoId;
             heartbeatDeviceType = "TV".equals(deviceType) ? "TV" : "TABLET";
             startHeartbeat();
+            startAntiFreeWatchdog(); // TV: saca del HDMI en ≤3s si no hay turno
         }
 
         /**
@@ -857,6 +917,9 @@ public class MainActivity extends BridgeActivity {
             try {
                 AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                 long triggerAt = SystemClock.elapsedRealtime() + delayMs;
+                // Señal autoritativa para el watchdog anti-fuga: hay partida paga
+                // hasta este momento, así que NO sacar del HDMI hasta entonces.
+                sessionActiveUntilMs = triggerAt;
                 int piFlags = PendingIntent.FLAG_CANCEL_CURRENT
                     | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
 
@@ -901,6 +964,8 @@ public class MainActivity extends BridgeActivity {
         /** Cancela una alarma pendiente de scheduleReturn(). */
         @JavascriptInterface
         public void cancelScheduledReturn() {
+            // Ya no hay partida paga corriendo → el watchdog puede sacar del HDMI.
+            sessionActiveUntilMs = 0;
             try {
                 AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                 int piFlags = PendingIntent.FLAG_NO_CREATE
