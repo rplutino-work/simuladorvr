@@ -24,8 +24,13 @@ export async function GET(req: NextRequest) {
   const isVercelCron = req.headers.get("x-vercel-cron") != null;
   const authHeader = req.headers.get("authorization");
   const hasSecret = !!cronSecret && authHeader === `Bearer ${cronSecret}`;
-  // Fail closed: only Vercel Cron or a caller with the secret may run this.
-  if (!isVercelCron && !hasSecret) {
+  // Fail closed. El header `x-vercel-cron` es spoofeable (Vercel no garantiza
+  // stripearlo en requests externos), así que si CRON_SECRET está configurado lo
+  // EXIGIMOS — Vercel Cron ya manda `Authorization: Bearer <CRON_SECRET>` cuando
+  // el env var existe. Sólo si no hay secret configurado caemos al header, para
+  // no romper un deploy sin configurar.
+  const authorized = cronSecret ? hasSecret : isVercelCron;
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -49,6 +54,9 @@ export async function GET(req: NextRequest) {
       const bizSettings = await prisma.businessSettings.findFirst();
       for (const b of recentPending) {
         try {
+          // Group members share one MP preference (external_reference =
+          // "group-{groupId}"); they're reconciled together in the block below.
+          if (b.groupId) continue;
           // A booking's payment is tagged with external_reference = its id
           // (online) or "direct-{id}" (tablet walk-in).
           const search = await paymentApi.search({
@@ -125,6 +133,90 @@ export async function GET(req: NextRequest) {
           reconciled++;
         } catch (e) {
           logger.error("cron.reconcile.booking", { bookingId: b.id }, e);
+        }
+      }
+
+      // ── 1b. Reconcile PENDING groups against MercadoPago ──────────────────
+      // A group pays ONE preference (external_reference = "group-{groupId}").
+      // If that webhook never landed we'd otherwise expire a paid group after
+      // 30 min → money charged, no session. Confirm each distinct group once.
+      const pendingGroupIds = [
+        ...new Set(
+          recentPending
+            .filter((b) => b.groupId)
+            .map((b) => b.groupId as string)
+        ),
+      ];
+      for (const groupId of pendingGroupIds) {
+        try {
+          const members = await prisma.booking.findMany({ where: { groupId } });
+          // Nothing left to confirm (webhook already handled it, or all gone).
+          if (!members.some((m) => m.status === "PENDING")) continue;
+
+          const search = await paymentApi.search({
+            options: { external_reference: `group-${groupId}` },
+          });
+          const pay = (search.results ?? []).find((p) => p.status === "approved");
+          if (!pay) continue;
+          const mpPaymentId = pay.id != null ? String(pay.id) : null;
+          if (!mpPaymentId) continue;
+          const paidCents = pay.transaction_amount
+            ? Math.round(pay.transaction_amount * 100)
+            : 0;
+          const groupTotal = members.reduce((s, m) => s + m.price, 0);
+          // Underpaid → don't hand out sessions for less than the group price.
+          if (paidCents > 0 && paidCents < groupTotal) continue;
+
+          // One shared code for the whole group.
+          let code = generateBookingCode();
+          while (
+            await prisma.booking.findFirst({
+              where: { groupCode: code, status: { in: ["PENDING", "PAID", "ACTIVE"] } },
+              select: { id: true },
+            })
+          ) {
+            code = generateBookingCode();
+          }
+
+          await prisma.$transaction(async (tx) => {
+            for (const m of members) {
+              if (m.status !== "PENDING") continue;
+              await tx.booking.update({
+                where: { id: m.id },
+                data: { status: "PAID", groupCode: code, paymentId: mpPaymentId },
+              });
+              await tx.payment.upsert({
+                where: { bookingId: m.id },
+                create: { bookingId: m.id, mpPaymentId, amount: m.price, status: "approved" },
+                update: { status: "approved", mpPaymentId },
+              });
+            }
+          });
+
+          // Single confirmation email with the group code.
+          const email = members.find((m) => m.customerEmail)?.customerEmail;
+          if (email && bizSettings?.emailEnabled !== false) {
+            const first = members[0];
+            const when = first.startTime
+              ? first.startTime.toLocaleString("es-AR", {
+                  dateStyle: "long",
+                  timeStyle: "short",
+                  timeZone: "America/Argentina/Buenos_Aires",
+                })
+              : "A confirmar";
+            await sendBookingConfirmationEmail(
+              email,
+              code,
+              first.duration,
+              when,
+              `Grupo de ${members.length} simuladores`,
+              bizSettings?.emailFrom,
+              null
+            ).catch((e) => logger.error("cron.reconcile.group.email", { groupId }, e));
+          }
+          reconciled++;
+        } catch (e) {
+          logger.error("cron.reconcile.group", { groupId }, e);
         }
       }
     }

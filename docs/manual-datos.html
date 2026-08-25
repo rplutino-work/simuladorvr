@@ -1,0 +1,489 @@
+<title>Race Room — Datos verificados del sistema</title>
+<style>
+  :root{
+    --bg:#0A0A0C; --panel:#141418; --panel-2:#1b1b21; --line:#26262e;
+    --ink:#ECECEF; --ink-dim:#A0A0AC; --ink-faint:#6C6C78;
+    --red:#E60012; --red-soft:rgba(230,0,18,.12); --red-line:rgba(230,0,18,.35);
+    --warn:#F5A524; --warn-soft:rgba(245,165,36,.12);
+    --crit:#FF4D4D; --crit-soft:rgba(255,77,77,.12);
+    --ok:#31C46A; --ok-soft:rgba(49,196,106,.12);
+    --info:#4a9eff; --info-soft:rgba(74,158,255,.12);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --cond:"Arial Narrow","Roboto Condensed",var(--sans);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 clamp(16px,4vw,40px)}
+
+  /* header */
+  header.top{position:sticky;top:0;z-index:20;background:rgba(10,10,12,.86);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  header.top .wrap{display:flex;align-items:center;gap:14px;height:58px}
+  .badge{font-family:var(--cond);font-weight:800;letter-spacing:.18em;text-transform:uppercase;
+    color:#fff;background:var(--red);padding:5px 10px;border-radius:6px;font-size:13px;
+    box-shadow:0 0 18px rgba(230,0,18,.4)}
+  header.top h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.02em;color:var(--ink)}
+  header.top .meta{margin-left:auto;color:var(--ink-faint);font-size:12px;
+    font-family:var(--cond);letter-spacing:.14em;text-transform:uppercase}
+
+  /* hero */
+  .hero{padding:clamp(38px,7vw,72px) 0 26px;border-bottom:1px solid var(--line);
+    background:radial-gradient(120% 140% at 100% 0,rgba(230,0,18,.10),transparent 55%)}
+  .hero .eyebrow{font-family:var(--cond);text-transform:uppercase;letter-spacing:.32em;
+    color:var(--red);font-size:13px;font-weight:700;margin:0 0 14px}
+  .hero h2{font-family:var(--cond);font-weight:800;text-transform:uppercase;letter-spacing:.01em;
+    font-size:clamp(30px,6vw,52px);line-height:1.02;margin:0;text-wrap:balance}
+  .hero p{max-width:66ch;color:var(--ink-dim);margin:18px 0 0;font-size:16.5px}
+
+  /* layout with sidebar */
+  .shell{display:grid;grid-template-columns:1fr;gap:40px;padding:36px 0 90px}
+  @media(min-width:1000px){.shell{grid-template-columns:230px 1fr}}
+  nav.toc{align-self:start}
+  @media(min-width:1000px){nav.toc{position:sticky;top:74px;max-height:calc(100vh-90px);overflow:auto}}
+  nav.toc .tl{font-family:var(--cond);text-transform:uppercase;letter-spacing:.18em;
+    font-size:11px;color:var(--ink-faint);margin:0 0 10px;font-weight:700}
+  nav.toc a{display:block;color:var(--ink-dim);text-decoration:none;font-size:13.5px;
+    padding:5px 10px;border-left:2px solid var(--line);border-radius:0 5px 5px 0;transition:.15s}
+  nav.toc a:hover{color:var(--ink);border-left-color:var(--red);background:var(--red-soft)}
+  nav.toc a.action{color:var(--warn)}
+
+  main{min-width:0}
+  section{margin:0 0 46px;scroll-margin-top:74px}
+  section > h3{font-family:var(--cond);text-transform:uppercase;letter-spacing:.04em;
+    font-size:clamp(19px,3vw,25px);font-weight:800;margin:0 0 4px;
+    padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:12px}
+  section > h3 .n{color:var(--red);font-size:.72em;font-weight:800}
+  h4{font-size:15px;font-weight:700;margin:24px 0 8px;color:var(--ink);letter-spacing:.01em}
+  p{margin:10px 0}
+  strong{color:#fff;font-weight:650}
+  a.src{color:var(--info);text-decoration:none}
+  code,.mono{font-family:var(--mono);font-size:.86em;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:4px;padding:.1em .38em;color:#cdd3da}
+
+  ul{margin:10px 0;padding-left:0;list-style:none}
+  ul li{position:relative;padding:4px 0 4px 20px}
+  ul li::before{content:"";position:absolute;left:2px;top:.95em;width:6px;height:6px;
+    background:var(--red);border-radius:1px;transform:rotate(45deg)}
+  ul.plain li{padding-left:20px}
+
+  /* callout cards */
+  .cards{display:grid;gap:14px;margin:8px 0 6px}
+  .card{border:1px solid var(--line);border-radius:12px;background:var(--panel);
+    padding:16px 18px;border-left-width:4px}
+  .card.crit{border-left-color:var(--crit);background:linear-gradient(90deg,var(--crit-soft),transparent 60%)}
+  .card.warn{border-left-color:var(--warn);background:linear-gradient(90deg,var(--warn-soft),transparent 60%)}
+  .card.info{border-left-color:var(--info);background:linear-gradient(90deg,var(--info-soft),transparent 60%)}
+  .card.ok{border-left-color:var(--ok);background:linear-gradient(90deg,var(--ok-soft),transparent 60%)}
+  .card .chip{display:inline-block;font-family:var(--cond);text-transform:uppercase;
+    letter-spacing:.14em;font-size:11px;font-weight:800;padding:3px 9px;border-radius:5px;margin-bottom:8px}
+  .chip.crit{background:var(--crit);color:#180000}
+  .chip.warn{background:var(--warn);color:#1a1200}
+  .chip.info{background:var(--info);color:#00122b}
+  .chip.ok{background:var(--ok);color:#00190c}
+  .card h5{margin:0 0 6px;font-size:15.5px;color:#fff}
+  .card p{margin:6px 0 0;color:var(--ink-dim);font-size:14.5px}
+
+  /* tables */
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin:16px 0;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+  thead th{background:var(--panel-2);text-align:left;font-family:var(--cond);
+    text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--ink-dim);
+    font-weight:700;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-dim)}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover td{background:rgba(255,255,255,.018)}
+  td strong,td b{color:var(--ink)}
+  .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--ink)}
+  .pill{display:inline-block;font-family:var(--cond);text-transform:uppercase;letter-spacing:.08em;
+    font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;white-space:nowrap}
+  .p-amber{background:var(--warn-soft);color:var(--warn)}
+  .p-blue{background:var(--info-soft);color:var(--info)}
+  .p-green{background:var(--ok-soft);color:var(--ok)}
+  .p-red{background:var(--crit-soft);color:var(--crit)}
+  .p-gray{background:rgba(160,160,172,.14);color:var(--ink-dim)}
+  .yes{color:var(--ok);font-weight:700}
+  .no{color:var(--crit);font-weight:700}
+
+  .lead{color:var(--ink-dim);font-size:15px;border-left:3px solid var(--red-line);
+    padding:2px 0 2px 16px;margin:0 0 20px;background:var(--red-soft);border-radius:0 8px 8px 0;
+    padding:12px 16px}
+  footer{border-top:1px solid var(--line);padding:26px 0;color:var(--ink-faint);font-size:13px}
+  :focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:3px}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <span class="badge">RR</span>
+    <h1>Datos verificados del sistema — Race Room</h1>
+    <span class="meta">Referencia interna</span>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Manual de administración · Base técnica</p>
+    <h2>Cómo funciona el sistema, verificado contra el código</h2>
+    <p>Todo lo de esta página fue comprobado línea por línea en el código real (reservas, panel, tablets, pagos). Sirve de base para el manual de dueños y staff. Lo que hay que <strong>corregir o definir</strong> está arriba de todo; el detalle por sección, más abajo.</p>
+  </div>
+</div>
+
+<div class="wrap shell">
+  <nav class="toc" aria-label="Índice">
+    <p class="tl">Índice</p>
+    <a class="action" href="#accion">⚠ Acción requerida</a>
+    <a class="action" href="#negocio">Datos de negocio</a>
+    <a href="#s1">1 · Acceso y roles</a>
+    <a href="#s2">2 · El panel</a>
+    <a href="#s3">3 · Reservas</a>
+    <a href="#s4">4 · Walk-in</a>
+    <a href="#s5">5 · Grupos</a>
+    <a href="#s6">6 · Descuento grupo</a>
+    <a href="#s7">7 · Código de acceso</a>
+    <a href="#s8">8 · Tablets y TVs</a>
+    <a href="#s9">9 · Disponibilidad</a>
+    <a href="#s10">10 · Precios</a>
+    <a href="#s11">11 · MercadoPago</a>
+    <a href="#s12">12 · Emails</a>
+    <a href="#s13">13 · Configuración</a>
+    <a href="#s14">14 · Puestos</a>
+    <a href="#s15">15 · Errores</a>
+    <a href="#s16">16 · Infraestructura</a>
+    <a href="#tablas">Tablas de referencia</a>
+  </nav>
+
+  <main>
+    <!-- ACCIÓN -->
+    <section id="accion">
+      <h3><span class="n">⚠</span> Acción requerida</h3>
+      <p class="lead">Tres cosas que conviene resolver antes de publicar el manual. Las dos primeras son fixes de código/config rápidos; la tercera es una decisión.</p>
+      <div class="cards">
+        <div class="card crit">
+          <span class="chip crit">Crítico · bug</span>
+          <h5>El código de un grupo no funciona en la tablet</h5>
+          <p>La tablet valida solo el campo <code>code</code>, y las reservas de grupo lo tienen en <code>groupCode</code> (con <code>code = null</code>). Un cliente de grupo <strong>online</strong> paga, recibe el código por email, pero al ingresarlo en la tablet obtiene <em>"Código inválido"</em>. Hoy los grupos solo arrancan desde el panel con "Iniciar grupo ahora". Rompe el flujo de grupo online de punta a punta. <strong>→ Recomendado: que <code>/api/tablet/activate</code> acepte también <code>groupCode</code>.</strong></p>
+        </div>
+        <div class="card warn">
+          <span class="chip warn">Config</span>
+          <h5>El horario configurado no coincide con el del local</h5>
+          <p>El sistema tiene <code>closeHour = 23</code> en la base, pero el local atiende <strong>10 a 20</strong>. La web ofrece turnos hasta las 23. <strong>→ Cambiar la hora de cierre a 20</strong> en Configuración.</p>
+        </div>
+        <div class="card info">
+          <span class="chip info">A tener en cuenta</span>
+          <h5>Los permisos son más laxos de lo esperado</h5>
+          <p>Solo precios, configuración y puestos son exclusivos de ADMIN. Un <strong>Operador</strong> puede confirmar pagos, cancelar y <strong>reembolsar</strong> vía API. Decidir si se restringe o queda así.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- NEGOCIO -->
+    <section id="negocio">
+      <h3><span class="n">◆</span> Datos de negocio</h3>
+      <p>Aportados por el dueño (no viven en el código):</p>
+      <div class="tw"><table>
+        <tbody>
+          <tr><td><strong>Soporte técnico</strong></td><td>Nicolás Bonardi — <span class="mono">+54 9 11 2816-8553</span></td></tr>
+          <tr><td><strong>Dueños / guardia</strong></td><td>Mismo contacto (Nicolás Bonardi)</td></tr>
+          <tr><td><strong>Horario del local</strong></td><td>10:00 a 20:00 <span class="pill p-amber">ajustar cierre a 20 en config</span></td></tr>
+          <tr><td><strong>Procedimiento de cierre</strong></td><td>Se puede no apagar; si se apaga, se apaga todo. El sistema tolera el apagado.</td></tr>
+          <tr><td><strong>Puestos con VR</strong></td><td>Simulador <strong>4</strong> y Simulador <strong>5</strong> <span class="pill p-gray">no hay campo VR en el sistema — dato manual</span></td></tr>
+          <tr><td><strong>Reglas de la casa</strong></td><td><span class="pill p-red">pendiente</span> edad mínima, tolerancia de llegada, reintegros</td></tr>
+          <tr><td><strong>MercadoPago — acceso y criterio de reembolsos</strong></td><td><span class="pill p-red">pendiente</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 1 -->
+    <section id="s1">
+      <h3><span class="n">01</span> Acceso, usuarios y roles</h3>
+      <ul>
+        <li><strong>Login y redirección:</strong> URL <code>/admin/login</code>. Cualquier <code>/admin</code> sin sesión redirige ahí; tras entrar va al Dashboard (<code>/admin</code>). <span class="mono">middleware.ts:144</span></li>
+        <li><strong>Roles:</strong> <code>ADMIN</code> y <code>OPERATOR</code> (no hay un tercero). Se ven como "Administrador" / "Operador". <span class="mono">schema.prisma:28</span></li>
+        <li><strong>Permisos:</strong> solo <code>puestos</code>, <code>settings</code> y <code>email-test</code> validan rol ADMIN en el backend; el resto de acciones admin solo exigen sesión iniciada. (Ver tabla de permisos.)</li>
+        <li><strong>Alta de usuarios / reset de contraseña:</strong> <span class="no">NO EXISTE</span> pantalla ni recuperación. Se crean por base/seed. <span class="mono">prisma/seed.ts:8</span></li>
+        <li><strong>Duración de sesión:</strong> 24 horas. <span class="mono">lib/auth.ts:62</span></li>
+      </ul>
+    </section>
+
+    <!-- 2 -->
+    <section id="s2">
+      <h3><span class="n">02</span> Estructura del panel</h3>
+      <h4>Menú lateral <span class="mono" style="font-weight:400">app/admin/layout.tsx:28</span></h4>
+      <ul>
+        <li>Grupo <strong>"General":</strong> Dashboard → <code>/admin</code> · Reservas → <code>/admin/reservas</code> · Métricas → <code>/admin/metricas</code></li>
+        <li>Grupo <strong>"Gestión"</strong> (oculto al operador): Simuladores → <code>/admin/puestos</code> · Configuración → <code>/admin/configuracion</code></li>
+      </ul>
+      <h4>Dashboard</h4>
+      <p>KPIs: <strong>Reservas activas</strong>, <strong>Ingresos hoy</strong> (vs ayer), <strong>Ingresos del mes</strong>, <strong>Reservas hoy</strong> (vs ayer). Gráficos: Ingresos 14 días · Uso por simulador · Duración elegida · Estado de reservas · Actividad por hora (30 días). Todo en hora Argentina.</p>
+      <h4>Estado de dispositivos (solo Dashboard)</h4>
+      <p>Heartbeat del kiosko cada <strong>15 s</strong>; el panel refresca cada 5 s; se marca <strong>offline a los 45 s</strong>. Estados: <span class="pill p-green">Online</span> <span class="pill p-red">Offline</span> <span class="pill p-gray">Sin señal</span> <span class="pill p-amber">En sesión</span> (la TV cuando está en HDMI de la PlayStation). <span class="mono">app/admin/page.tsx:32</span></p>
+    </section>
+
+    <!-- 3 -->
+    <section id="s3">
+      <h3><span class="n">03</span> Pantalla de Reservas</h3>
+      <ul>
+        <li><strong>Columnas:</strong> Código · Simulador · Cliente · Inicio · Dur./$ · Estado · Acciones.</li>
+        <li><strong>Filtros:</strong> buscador único de texto ("Código, nombre o email…") + filtro por estado. <span class="no">No hay</span> filtro por fecha ni por puesto en la UI.</li>
+        <li><strong>Editar/reprogramar:</strong> desde el panel solo se cancela y recrea (se editan notas/nombre/email, no fecha/hora). La reprogramación real es self-service del cliente con su token.</li>
+        <li><strong>Código y reenvío:</strong> el código se muestra y se copia; <span class="no">no hay botón</span> de reenviar email.</li>
+      </ul>
+      <div class="card warn" style="margin-top:14px">
+        <span class="chip warn">Ojo</span>
+        <h5>"Iniciar sesión" individual desde el panel no funciona</h5>
+        <p>El backend lo rechaza a propósito ("ingresá el código en la tablet…") y el front no muestra el error. Las sesiones individuales arrancan <strong>solo desde la tablet</strong>. Solo los grupos se inician desde el panel.</p>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="s4">
+      <h3><span class="n">04</span> Walk-in (cliente sin reserva)</h3>
+      <ul>
+        <li><strong>Botón:</strong> "Walk-in / Efectivo" → modal "Reserva manual (walk-in)".</li>
+        <li><strong>Campos:</strong> Simulador y Fecha y Hora obligatorios; Duración (30/60/120, default 60); Nombre, Email, Notas opcionales; checkbox de enviar email (solo si hay email).</li>
+        <li><strong>Cobro:</strong> queda <span class="pill p-blue">Pagado</span> al instante. No se elige monto (toma el del puesto) ni medio de pago (se asume efectivo).</li>
+        <li><strong>Código/email:</strong> genera código siempre; email solo si se tildó y hay email.</li>
+        <li><strong>"Ahora mismo":</strong> se crea con hora actual pero no arranca solo — la sesión corre al ingresar el código en la tablet.</li>
+      </ul>
+    </section>
+
+    <!-- 5 -->
+    <section id="s5">
+      <h3><span class="n">05</span> Grupos</h3>
+      <ul>
+        <li><strong>Modelo:</strong> no hay tabla <code>Group</code>. Un grupo = varias reservas con el mismo <code>groupId</code> y <code>groupCode</code> compartido. <span class="mono">schema.prisma:136</span></li>
+        <li><strong>Carga:</strong> botón "Grupo" → modal "Reserva grupal". Elegís 2+ puestos, una duración, fecha y hora → "Crear grupo · $…". Crea N reservas Pagadas.</li>
+        <li><strong>Iniciar:</strong> "Iniciar grupo ahora" pone todas las sesiones en curso de una. También finalizar/cancelar el grupo entero.</li>
+        <li><strong>Código:</strong> uno solo compartido. <span class="pill p-red">No se valida en la tablet</span> (ver Acción requerida).</li>
+        <li><strong>Cancelar un puesto:</strong> no recalcula el descuento ni cambia el código.</li>
+        <li><strong>Duraciones:</strong> todas iguales dentro del grupo.</li>
+      </ul>
+    </section>
+
+    <!-- 6 -->
+    <section id="s6">
+      <h3><span class="n">06</span> Descuento por grupo</h3>
+      <ul>
+        <li><strong>Config:</strong> tabla <code>BusinessSettings</code>, editable desde Configuración. <span class="mono">schema.prisma:53</span></li>
+        <li><strong>Tramos por defecto:</strong> 2 → 5% · 3 → 10% · 4 → 15% · 5 → 20%. Para 6+ toma el tramo más alto ≤ cantidad.</li>
+        <li><strong>Aplica igual</strong> a 30/60/120; redondea al centavo, el resto va a la primera reserva.</li>
+        <li><strong>Fechas:</strong> vacías = siempre; fuera del rango = 0%.</li>
+        <li><strong>Panel:</strong> los grupos walk-in también reciben el descuento.</li>
+        <li><strong>Desactivado:</strong> no se muestra el aviso "¿Vienen en grupo?" y se paga el total sin rebaja.</li>
+      </ul>
+    </section>
+
+    <!-- 7 -->
+    <section id="s7">
+      <h3><span class="n">07</span> Código de acceso</h3>
+      <ul>
+        <li><strong>Formato:</strong> <strong>4 caracteres</strong>, alfabeto <code>ABCDEFGHJKLMNPQRSTUVWXYZ23456789</code> (sin O, 0, I, 1). <span class="pill p-amber">el comentario del código dice "6-digit" — está obsoleto</span></li>
+        <li><strong>Se genera al confirmar el pago</strong>, no al crear la reserva.</li>
+        <li><strong>Validez:</strong> no vence por tiempo — se canjea cuando el puesto está libre. La sesión ya iniciada se cierra sola 5 min después de su fin.</li>
+        <li><strong>Reuso:</strong> reingresar mientras está en curso retoma la sesión (no reinicia). Finalizada ya no sirve.</li>
+        <li><strong>Intentos:</strong> 15 cada 5 min por IP+puesto (sin bloqueo permanente).</li>
+        <li><strong>Unicidad:</strong> el código individual es único para siempre; el de grupo se puede repetir otro día.</li>
+      </ul>
+    </section>
+
+    <!-- 8 -->
+    <section id="s8">
+      <h3><span class="n">08</span> Tablets, TVs y sesiones</h3>
+      <ul>
+        <li><strong>App:</strong> WebView nativa Android (Capacitor) que abre la web de Vercel. Dos APKs (tablet y TV). El modo kiosko efectivo (Device Owner/MDM) es config del dispositivo, fuera del repo.</li>
+        <li><strong>Vínculo tablet→puesto:</strong> por URL (<code>/tablet/1</code>) y/o memoria local. Sin login ni QR.</li>
+        <li><strong>Encendido de la pantalla:</strong> la tablet marca la sesión activa; la TV lo detecta por polling y cambia a la entrada HDMI de la PlayStation.</li>
+        <li><strong>Cierre:</strong> al llegar a 0 la tablet cierra la sesión; red de seguridad por cron con 5 min de gracia.</li>
+        <li><strong>Corte de internet:</strong> la tablet sigue contando localmente; el retorno del HDMI está garantizado por alarma nativa.</li>
+        <li><strong>Reinicio:</strong> apagar/prender la devuelve sola a la app. La re-vinculación por ADB no está en el repo (runbook de flota).</li>
+        <li><strong>Desactivar un puesto con sesión activa:</strong> la sesión en curso no se corta; bloquea nuevos inicios.</li>
+      </ul>
+    </section>
+
+    <!-- 9 -->
+    <section id="s9">
+      <h3><span class="n">09</span> Disponibilidad y horarios</h3>
+      <ul>
+        <li><strong>Generación:</strong> slots de apertura a cierre cada <code>slotInterval</code> min (defaults 10 / 20 / 15).</li>
+        <li><strong>Reservas sin pagar:</strong> bloquean el horario; expiran a los <strong>30 min</strong>, liberadas por el cron (cada 5 min), no al consultar.</li>
+        <li><strong>Zona horaria:</strong> Argentina UTC-3 fijo, sin horario de verano.</li>
+        <li><strong>Bloquear feriados / franjas / mantenimiento:</strong> <span class="no">NO EXISTE</span>.</li>
+        <li><strong>120 min:</strong> habilitado en la web (requiere <code>price120 &gt; 0</code>).</li>
+        <li><strong>Anticipación máxima:</strong> <span class="no">sin tope</span>.</li>
+      </ul>
+    </section>
+
+    <!-- 10 -->
+    <section id="s10">
+      <h3><span class="n">10</span> Precios</h3>
+      <p>Viven en cada <code>Puesto</code>, por duración, en centavos. Hoy todos los puestos son iguales. Al cambiar un precio, las reservas ya creadas conservan el suyo (se congela al crearlas). No hay precios por día/horario.</p>
+      <div class="tw"><table>
+        <thead><tr><th>Duración</th><th class="num">Precio</th><th>Nota</th></tr></thead>
+        <tbody>
+          <tr><td>30 min</td><td class="num">$6.000</td><td></td></tr>
+          <tr><td>60 min</td><td class="num">$10.000</td><td></td></tr>
+          <tr><td>90 min</td><td class="num">$15.000</td><td>existe en la base, no se vende online</td></tr>
+          <tr><td>120 min</td><td class="num">$20.000</td><td></td></tr>
+          <tr><td>Grupo 5 × 60 min (−20%)</td><td class="num">$40.000</td><td>descuento por grupo</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 11 -->
+    <section id="s11">
+      <h3><span class="n">11</span> MercadoPago</h3>
+      <ul>
+        <li><strong>Integración:</strong> Checkout Pro (redirección). Sin restricción de medios; moneda ARS.</li>
+        <li><strong>Confirmación:</strong> webhook + polling + cron. "Pagado" = <code>approved</code>, con guardia de pago insuficiente.</li>
+        <li><strong>Reconciliación:</strong> cron cada 5 min (Vercel) + 10 min (GitHub Actions): recupera pagos con webhook perdido (incluye grupos), expira pendientes, cierra sesiones vencidas.</li>
+        <li><strong>Pago tras expirar:</strong> no revive solo → pago huérfano → reembolso manual.</li>
+        <li><strong>Reembolsos:</strong> desde el panel ("Reembolsar y cancelar"). Lo puede usar cualquier usuario logueado.</li>
+        <li><strong>ID de pago:</strong> en el detalle de la reserva, sección "Pago".</li>
+      </ul>
+    </section>
+
+    <!-- 12 -->
+    <section id="s12">
+      <h3><span class="n">12</span> Emails</h3>
+      <ul>
+        <li><strong>Servicio:</strong> Resend. Remitente configurable (fallback <code>Race Room &lt;onboarding@resend.dev&gt;</code>).</li>
+        <li><strong>Emails que envía:</strong> uno solo — confirmación, asunto <code>✅ Reserva confirmada – Código {code}</code>. <span class="no">No hay</span> recordatorio, cancelación ni reembolso.</li>
+        <li><strong>Reenvío:</strong> <span class="no">no hay</span> botón (solo un "email de prueba" que manda <code>TEST01</code>).</li>
+        <li><strong>Email mal escrito:</strong> se puede corregir, pero no se reenvía automáticamente si ya tiene código.</li>
+      </ul>
+    </section>
+
+    <!-- 13 -->
+    <section id="s13">
+      <h3><span class="n">13</span> Configuración</h3>
+      <ul>
+        <li><strong>Cierre ≤ apertura:</strong> aviso en vivo y rechazo del servidor — no se puede guardar un horario invertido.</li>
+        <li><strong>Cancelaciones:</strong> <em>Manual</em> = marca cancelada + WhatsApp (no devuelve plata); <em>Automático</em> = además reembolsa por MP (el efectivo siempre cae a Manual). El cliente cancela desde el link del email.</li>
+        <li><strong>Interruptor de emails:</strong> global.</li>
+        <li><strong>Cache:</strong> se invalida al guardar (settings 30 s / puestos 60 s de respaldo).</li>
+      </ul>
+      <p>La tabla completa de campos está en <a class="src" href="#t-config">Tablas de referencia</a>.</p>
+    </section>
+
+    <!-- 14 -->
+    <section id="s14">
+      <h3><span class="n">14</span> Puestos</h3>
+      <ul>
+        <li><strong>Cantidad:</strong> no fija — hay botón "Nuevo simulador".</li>
+        <li><strong>Campo VR:</strong> <span class="no">NO EXISTE</span> en el sistema (dato manual: 4 y 5).</li>
+        <li><strong>Nombres:</strong> "Simulador 1"…"Simulador 5".</li>
+        <li><strong>Desactivar:</strong> desaparece de la web y la disponibilidad; sigue en el admin como "Inactivo"; las reservas ya vendidas no se tocan y se pueden seguir activando.</li>
+      </ul>
+    </section>
+
+    <!-- 15 -->
+    <section id="s15">
+      <h3><span class="n">15</span> Errores</h3>
+      <p>Página de estado / "sistema caído": <span class="no">NO EXISTE</span>. Los logs se ven en Vercel (Runtime Logs) y el cron en GitHub Actions; no hay Sentry/Datadog. Los textos literales de error de la tablet están en <a class="src" href="#t-texts">Tablas de referencia</a>.</p>
+    </section>
+
+    <!-- 16 -->
+    <section id="s16">
+      <h3><span class="n">16</span> Infraestructura</h3>
+      <ul>
+        <li><strong>Hosting:</strong> app en Vercel, base en Neon Postgres (us-east-1). Dominio <code>raceroom.com.ar</code>. El registrador/DNS no está en el repo.</li>
+        <li><strong>Backups:</strong> <span class="no">no en el repo</span>; dependen de Neon.</li>
+        <li><strong>Tareas programadas:</strong> un job (<code>expire-bookings</code>) con dos disparadores (Vercel <code>*/5</code> + GitHub Actions <code>*/10</code>): reconcilia pagos, expira pendientes, auto-finaliza sesiones vencidas.</li>
+        <li><strong>Encendido/apagado:</strong> seguro apagar/reiniciar — el sistema se auto-cura. No requiere apagado ordenado.</li>
+      </ul>
+    </section>
+
+    <!-- TABLAS -->
+    <section id="tablas">
+      <h3><span class="n">✦</span> Tablas de referencia</h3>
+
+      <h4 id="t-estados">Estados de reserva</h4>
+      <div class="tw"><table>
+        <thead><tr><th>Técnico</th><th>En pantalla</th><th>Color</th><th>Acciones que habilita</th></tr></thead>
+        <tbody>
+          <tr><td><code>PENDING</code></td><td><span class="pill p-amber">Pendiente</span></td><td>ámbar</td><td>Confirmar pago · Cancelar</td></tr>
+          <tr><td><code>PAID</code></td><td><span class="pill p-blue">Pagado</span></td><td>azul</td><td>Iniciar sesión* · Cancelar</td></tr>
+          <tr><td><code>ACTIVE</code></td><td><span class="pill p-green">En curso</span></td><td>verde</td><td>Finalizar · Cancelar</td></tr>
+          <tr><td><code>FINISHED</code></td><td><span class="pill p-gray">Finalizado</span></td><td>gris</td><td>Solo Ver detalle</td></tr>
+          <tr><td><code>EXPIRED</code></td><td><span class="pill p-red">Expirado</span></td><td>rojo</td><td>Solo Ver detalle</td></tr>
+          <tr><td><code>CANCELLED</code></td><td><span class="pill p-red">Cancelado</span></td><td>rojo</td><td>Solo Ver detalle</td></tr>
+        </tbody>
+      </table></div>
+      <p style="font-size:13.5px;color:var(--ink-faint)">* "Iniciar sesión" individual desde el panel no funciona: las sesiones individuales arrancan en la tablet. Solo los grupos se inician desde el panel.</p>
+
+      <h4 id="t-perms">Matriz de permisos por rol</h4>
+      <div class="tw"><table>
+        <thead><tr><th>Acción</th><th>Backend</th><th>Admin</th><th>Operador</th></tr></thead>
+        <tbody>
+          <tr><td>Ver reservas</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Ver métricas / dashboard</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Crear walk-in</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Crear grupo</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Confirmar pago</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Finalizar sesión</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Cancelar reserva</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Reembolsar</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Iniciar grupo</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Ver códigos de acceso</td><td>solo sesión</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Cambiar precios</td><td><strong>ADMIN-only</strong></td><td class="yes">✓</td><td class="no">✕</td></tr>
+          <tr><td>Activar/desactivar/crear puesto</td><td><strong>ADMIN-only</strong></td><td class="yes">✓</td><td class="no">✕</td></tr>
+          <tr><td>Editar configuración</td><td><strong>ADMIN-only</strong></td><td class="yes">✓</td><td class="no">✕</td></tr>
+          <tr><td>Enviar email de prueba</td><td><strong>ADMIN-only</strong></td><td class="yes">✓</td><td class="no">✕</td></tr>
+        </tbody>
+      </table></div>
+
+      <h4 id="t-config">Campos de Configuración</h4>
+      <div class="tw"><table>
+        <thead><tr><th>Panel</th><th>Etiqueta</th><th>Tipo</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td>Horario y turnos</td><td>Hora de apertura</td><td>número 0-23</td><td class="num">10</td></tr>
+          <tr><td>Horario y turnos</td><td>Hora de cierre</td><td>número 0-24 (&gt; apertura)</td><td class="num">20</td></tr>
+          <tr><td>Horario y turnos</td><td>Intervalo de slot (min)</td><td>número 5-60</td><td class="num">15</td></tr>
+          <tr><td>Horario y turnos</td><td>Permitir cancelación</td><td>toggle</td><td>sí</td></tr>
+          <tr><td>Horario y turnos</td><td>Permitir reprogramación</td><td>toggle</td><td>sí</td></tr>
+          <tr><td>Horario y turnos</td><td>Mínimo horas antes para cancelar</td><td>número ≥0</td><td class="num">24</td></tr>
+          <tr><td>Horario y turnos</td><td>Margen entre turnos (min)</td><td>número ≥0</td><td class="num">0</td></tr>
+          <tr><td>Descuentos por grupo</td><td>Descuentos por grupo activados</td><td>toggle</td><td>no</td></tr>
+          <tr><td>Descuentos por grupo</td><td>% descuento (2/3/4/5 puestos)</td><td>número 0-100</td><td>5/10/15/20</td></tr>
+          <tr><td>Descuentos por grupo</td><td>Vigente desde / hasta (opcional)</td><td>fecha</td><td>vacío</td></tr>
+          <tr><td>Cancelaciones</td><td>Manual / Automático</td><td>selector</td><td>Manual</td></tr>
+          <tr><td>Cancelaciones</td><td>WhatsApp para devoluciones</td><td>teléfono</td><td>vacío</td></tr>
+          <tr><td>Emails</td><td>Envío de emails activado</td><td>toggle</td><td>sí</td></tr>
+          <tr><td>Emails</td><td>Remitente (From)</td><td>texto</td><td>vacío</td></tr>
+        </tbody>
+      </table></div>
+
+      <h4 id="t-texts">Textos de error de la tablet</h4>
+      <ul class="plain">
+        <li>"Código inválido. Verificá que el código sea correcto y que estés en el simulador correcto."</li>
+        <li>"Esta reserva fue cancelada."</li>
+        <li>"Esta reserva venció. Realizá una nueva reserva."</li>
+        <li>"Esta sesión ya fue completada."</li>
+        <li>"Esta reserva no está confirmada. Completá el pago primero."</li>
+        <li>"El simulador ya tiene una sesión en curso. Esperá a que termine."</li>
+        <li>"Tu sesión se superpondría con la próxima reserva de este simulador. Avisá al operador."</li>
+        <li>"Demasiados intentos. Esperá un momento e intentá de nuevo."</li>
+      </ul>
+
+      <h4 id="t-mal">Lo que el manual dice mal (supuestos vs. código)</h4>
+      <ul>
+        <li>El código de acceso es de <strong>4 caracteres</strong>, no 6.</li>
+        <li><strong>Crítico:</strong> el código de grupo no funciona en la tablet (ver arriba).</li>
+        <li>"Iniciar sesión" individual desde el panel falla en silencio.</li>
+        <li>Permisos más laxos: el Operador puede confirmar/cancelar/reembolsar.</li>
+        <li>No hay pantalla de usuarios ni recuperación de contraseña.</li>
+        <li>No existen: filtro por fecha/puesto, reprogramar desde el panel, reenviar email, emails de recordatorio/cancelación, bloqueo de feriados, tope de anticipación, campo VR, precios por día/horario, página de estado, backups en el repo.</li>
+        <li>Walk-in: no se elige monto ni medio de pago.</li>
+        <li>El código de grupo no es único para siempre; el individual sí.</li>
+        <li><strong>Horario:</strong> el sistema tiene cierre a las 23, el local cierra a las 20.</li>
+        <li>90 min existe en la base pero no se ofrece para venta.</li>
+      </ul>
+    </section>
+
+    <footer>
+      Race Room · Referencia técnica verificada contra el código. El detalle completo con referencias <code>archivo:línea</code> está en <code>docs/manual-datos.md</code>.
+    </footer>
+  </main>
+</div>

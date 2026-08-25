@@ -16,8 +16,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Reembolsar mueve plata real de MercadoPago → solo el ADMIN (dueño).
+  // El operador no puede reembolsar aunque el botón exista en la UI.
+  if (session?.user?.role !== "ADMIN") {
+    return NextResponse.json(
+      { error: "Solo un administrador puede reembolsar. Pedile al dueño." },
+      { status: 403 }
+    );
   }
   const { id } = await params;
 

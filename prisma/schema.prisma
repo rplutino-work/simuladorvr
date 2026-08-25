@@ -49,6 +49,9 @@ model BusinessSettings {
   // Cancellation & refund settings
   cancelMode            String   @default("MANUAL") // "MANUAL" | "AUTOMATIC"
   contactPhone          String?  // WhatsApp number for manual refunds (e.g. 5491112345678)
+  // Prueba gratis (código 8888): minutos de cooldown por simulador entre pruebas.
+  // 0 = sin cooldown (desactivado). El código staff (RRRR) no usa cooldown.
+  trialCooldownMin      Int      @default(10)
   // Group discount: progressive % off when booking several puestos together.
   groupDiscountEnabled  Boolean  @default(false)
   groupDiscountTiers     Json?   // { "2":5, "3":10, "4":15, "5":20 } — puestos → % off
@@ -128,7 +131,8 @@ model Booking {
   code       String?        @unique // 6-digit alphanumeric, generated on payment
   startTime  DateTime?
   endTime    DateTime?
-  paymentId     String?        // MercadoPago payment ID
+  paymentId     String?        // MercadoPago payment ID (último pago aplicado)
+  extPaymentIds String[]       @default([]) // mpPaymentIds de extensiones ya aplicadas (idempotencia por-pago)
   customerEmail String?        // For sending confirmation email
   customerName  String?        // Optional: walk-in customer name
   notes         String?        // Admin internal notes

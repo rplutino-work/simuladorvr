@@ -24,7 +24,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
-  const body = await req.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
   const data: Record<string, unknown> = { ...body };
   if (typeof body.price30 === "number") data.price30 = body.price30 * 100;
   if (typeof body.price60 === "number") data.price60 = body.price60 * 100;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createBookingSchema } from "@/lib/validations/booking";
-import { isSlotAvailable } from "@/lib/availability";
+import { isSlotAvailable, getBusinessSettings } from "@/lib/availability";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { withPuestoLock } from "@/lib/booking-lock";
@@ -36,6 +36,22 @@ export async function POST(req: NextRequest) {
     const { puestoId, duration, startTime: startTimeStr, customerEmail } = parsed.data;
     const startTime = new Date(startTimeStr);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
+
+    // No permitir turnos en el pasado ni fuera del horario del local (hora AR).
+    if (startTime.getTime() < Date.now()) {
+      return NextResponse.json({ error: "El horario debe ser futuro" }, { status: 400 });
+    }
+    const bizSettings = await getBusinessSettings();
+    const AR_OFFSET = 3 * 60 * 60 * 1000;
+    const startHourAR = new Date(startTime.getTime() - AR_OFFSET).getUTCHours();
+    const endAR = new Date(endTime.getTime() - AR_OFFSET);
+    const endHourAR = endAR.getUTCHours() + endAR.getUTCMinutes() / 60;
+    if (startHourAR < bizSettings.openHour || endHourAR > bizSettings.closeHour) {
+      return NextResponse.json(
+        { error: `El turno debe estar entre las ${bizSettings.openHour} y las ${bizSettings.closeHour} h.` },
+        { status: 400 }
+      );
+    }
 
     const puesto = await prisma.puesto.findUnique({
       where: { id: puestoId, active: true },

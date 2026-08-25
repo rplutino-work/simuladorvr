@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Car, Calendar, Clock, ChevronLeft, AlertCircle, CheckCircle } from "lucide-react";
+import { Car, Calendar, Clock, ChevronLeft, AlertCircle, CheckCircle, Users, Instagram } from "lucide-react";
+import { groupDiscountPct } from "@/lib/group-discount";
 
 type Puesto = {
   id: string;
@@ -15,6 +16,13 @@ type Puesto = {
   price30: number;
   price60: number;
   price120: number;
+};
+
+type DiscountConfig = {
+  groupDiscountEnabled: boolean;
+  groupDiscountTiers: unknown;
+  groupDiscountFrom: Date | null;
+  groupDiscountTo: Date | null;
 };
 
 type SlotItem = { startTime: string; available: boolean };
@@ -27,7 +35,30 @@ type DayAvailability = {
 const DURATIONS = [30, 60, 120] as const;
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  // Siempre en hora de Argentina, no la del navegador (un cliente con el reloj
+  // en otra zona veía una hora distinta a la del email de confirmación).
+  return new Date(iso).toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
+}
+
+/** Los Simuladores 3 y 4 usan lentes de Realidad Virtual (VR). Mismo precio. */
+function isVRPuesto(name: string) {
+  const n = parseInt(name.replace(/\D/g, ""), 10);
+  return n === 3 || n === 4;
+}
+
+function VRBadge({ className = "" }: { className?: string }) {
+  return (
+    <span
+      title="Realidad Virtual — mismo precio"
+      className={`inline-flex items-center rounded border border-[#E60012]/50 bg-[#E60012]/20 px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-widest text-[#E60012] ${className}`}
+    >
+      VR
+    </span>
+  );
 }
 
 const HOW_STEPS = [
@@ -94,32 +125,50 @@ function ReservaContent() {
 
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [date, setDate] = useState<string>(() => {
-    const d = new Date();
-    if (d.getHours() >= 20) d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
+    // "Hoy" en hora de Argentina (UTC-3), no la del navegador ni UTC — si no,
+    // a la tarde la fecha por defecto se corría uno o dos días.
+    const ar = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    if (ar.getUTCHours() >= 20) ar.setUTCDate(ar.getUTCDate() + 1);
+    return ar.toISOString().slice(0, 10);
   });
   const [dayData, setDayData] = useState<DayAvailability | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  const [selectedPuestoId, setSelectedPuestoId] = useState<string | null>(null);
+  // Multi-select: a group plays together at ONE time slot. `selectedIds` holds
+  // the puestos chosen at `selectedStartTime`. One selected → single booking;
+  // two or more → group booking with the progressive discount.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedStartTime, setSelectedStartTime] = useState<string | null>(null);
   const [activeMobilePuestoId, setActiveMobilePuestoId] = useState<string | null>(null);
+  const [discount, setDiscount] = useState<DiscountConfig | null>(null);
 
   const [duration, setDuration] = useState<number>(60);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(
     errorParam === "payment_failed" ? "El pago no pudo completarse. Intentalo de nuevo." : null
   );
 
   useEffect(() => {
     fetch("/api/puestos").then((r) => r.json()).then(setPuestos).catch(() => {});
+    fetch("/api/group-discount")
+      .then((r) => r.json())
+      .then((d) =>
+        setDiscount({
+          groupDiscountEnabled: d.enabled ?? false,
+          groupDiscountTiers: d.tiers ?? null,
+          groupDiscountFrom: d.from ? new Date(d.from) : null,
+          groupDiscountTo: d.to ? new Date(d.to) : null,
+        })
+      )
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!date) return;
     setLoadingSlots(true);
-    setSelectedPuestoId(null);
+    setSelectedIds([]);
     setSelectedStartTime(null);
     setActiveMobilePuestoId(null);
     fetch(`/api/availability?date=${date}&duration=${duration}`)
@@ -139,13 +188,27 @@ function ReservaContent() {
       .finally(() => setLoadingSlots(false));
   }, [date, duration]);
 
-  const selectedPuesto = puestos.find((p) => p.id === selectedPuestoId);
   const priceKey = duration === 30 ? "price30" : duration === 60 ? "price60" : "price120";
-  const price = selectedPuesto ? (selectedPuesto[priceKey] ?? 0) : 0;
-  const priceStr =
-    price > 0
-      ? (price / 100).toLocaleString("es-AR", { style: "currency", currency: "ARS" })
+
+  // Group-aware pricing over the current selection.
+  const selectedPuestos = selectedIds
+    .map((id) => puestos.find((p) => p.id === id))
+    .filter((p): p is Puesto => Boolean(p));
+  const baseTotal = selectedPuestos.reduce((s, p) => s + (p[priceKey] ?? 0), 0);
+  const isGroup = selectedIds.length >= 2;
+  const discountPct =
+    isGroup && discount ? groupDiscountPct(discount, selectedIds.length) : 0;
+  const total = Math.round(baseTotal * (1 - discountPct / 100));
+  const totalStr =
+    total > 0
+      ? (total / 100).toLocaleString("es-AR", { style: "currency", currency: "ARS" })
       : null;
+  const baseTotalStr = (baseTotal / 100).toLocaleString("es-AR", {
+    style: "currency",
+    currency: "ARS",
+  });
+
+  const hasSelection = selectedIds.length > 0 && !!selectedStartTime;
 
   function isAvailable(puestoId: string, startTime: string) {
     const p = dayData?.puestos.find((x) => x.id === puestoId);
@@ -154,19 +217,64 @@ function ReservaContent() {
     return p.slots.find((s) => new Date(s.startTime).getTime() === ms)?.available ?? false;
   }
 
+  // Toggle a puesto at a given slot. Selecting a different time starts a fresh
+  // group (a group always plays together at the same hour).
+  function toggleCell(puestoId: string, startTime: string) {
+    if (selectedStartTime !== startTime) {
+      setSelectedStartTime(startTime);
+      setSelectedIds([puestoId]);
+      return;
+    }
+    setSelectedIds((prev) => {
+      const next = prev.includes(puestoId)
+        ? prev.filter((x) => x !== puestoId)
+        : [...prev, puestoId];
+      if (next.length === 0) setSelectedStartTime(null);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds([]);
+    setSelectedStartTime(null);
+  }
+
   async function handleCheckout() {
-    if (!selectedPuestoId || !selectedStartTime) {
+    // Guard sincrónico: dos clicks en el mismo frame pasan el chequeo de
+    // `loading` (que es async) y disparan dos POST. Este ref los frena al toque.
+    if (submittingRef.current) return;
+    if (!hasSelection || !selectedStartTime) {
       setError("Seleccioná un horario primero");
       return;
     }
+    submittingRef.current = true;
     setError(null);
     setLoading(true);
     try {
+      const isSandbox = process.env.NEXT_PUBLIC_MERCADOPAGO_SANDBOX === "true";
+      if (isGroup) {
+        const res = await fetch("/api/bookings/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            puestoIds: selectedIds,
+            duration,
+            startTime: selectedStartTime,
+            customerEmail: email || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Error al crear la reserva grupal");
+        const initPoint = isSandbox ? (data.sandboxInitPoint ?? data.initPoint) : data.initPoint;
+        if (initPoint) window.location.href = initPoint;
+        else router.push(`/reserva/confirmacion?groupId=${data.groupId}`);
+        return;
+      }
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          puestoId: selectedPuestoId,
+          puestoId: selectedIds[0],
           duration,
           startTime: selectedStartTime,
           customerEmail: email || undefined,
@@ -174,7 +282,6 @@ function ReservaContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear reserva");
-      const isSandbox = process.env.NEXT_PUBLIC_MERCADOPAGO_SANDBOX === "true";
       const initPoint = isSandbox ? (data.sandboxInitPoint ?? data.initPoint) : data.initPoint;
       if (initPoint) window.location.href = initPoint;
       else router.push(`/reserva/confirmacion?bookingId=${data.bookingId}`);
@@ -182,11 +289,12 @@ function ReservaContent() {
       setError(e instanceof Error ? e.message : "Error al procesar");
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   }
 
-  const minDate = new Date().toISOString().slice(0, 10);
-  const step: 1 | 2 | 3 = !selectedPuestoId || !selectedStartTime ? 2 : 3;
+  const minDate = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const step: 1 | 2 | 3 = !hasSelection ? 2 : 3;
 
   const mobilePuestoData = dayData?.puestos.find((p) => p.id === activeMobilePuestoId);
   const mobilePuesto = puestos.find((p) => p.id === activeMobilePuestoId);
@@ -321,6 +429,43 @@ function ReservaContent() {
           </span>
         </motion.div>
 
+        {/* ── Group discount hint ─────────────────────────────────────── */}
+        {discount?.groupDiscountEnabled && groupDiscountPct(discount, 5) > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.24 }}
+            className="mb-3 flex items-start gap-2.5 rounded-xl border border-[#E60012]/25 bg-[#E60012]/8 px-3.5 py-2.5"
+          >
+            <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#E60012]" />
+            <p className="text-xs font-condensed tracking-wide text-white/70 leading-relaxed">
+              <span className="font-bold text-white">¿Vienen en grupo?</span> Elegí{" "}
+              <span className="text-[#E60012] font-bold">2 o más simuladores</span> en el mismo
+              horario y el descuento se aplica solo — hasta{" "}
+              <span className="text-[#E60012] font-bold">
+                {groupDiscountPct(discount, 5)}% off
+              </span>{" "}
+              con 5 puestos.
+            </p>
+          </motion.div>
+        )}
+
+        {/* ── VR hint ─────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.26 }}
+          className="mb-3 flex items-start gap-2.5 rounded-xl border border-[#E60012]/25 bg-[#E60012]/8 px-3.5 py-2.5"
+        >
+          <VRBadge className="mt-0.5 flex-shrink-0" />
+          <p className="text-xs font-condensed tracking-wide text-white/70 leading-relaxed">
+            <span className="font-bold text-white">Simuladores 3 y 4 con Realidad Virtual opcional.</span>{" "}
+            Tienen lentes VR disponibles: podés jugar{" "}
+            <span className="text-[#E60012] font-bold">con VR o de forma normal</span>, como
+            prefieras — al mismo precio que los demás.
+          </p>
+        </motion.div>
+
         {/* ── Slot grid ──────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -352,11 +497,7 @@ function ReservaContent() {
                         key={p.id}
                         type="button"
                         whileTap={{ scale: 0.96 }}
-                        onClick={() => {
-                          setActiveMobilePuestoId(p.id);
-                          setSelectedPuestoId(null);
-                          setSelectedStartTime(null);
-                        }}
+                        onClick={() => setActiveMobilePuestoId(p.id)}
                         className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition-all ${
                           activeMobilePuestoId === p.id
                             ? "border-[#E60012] bg-[#E60012] text-white shadow-[0_0_10px_rgba(230,0,18,0.3)]"
@@ -368,6 +509,7 @@ function ReservaContent() {
                           <span className="text-sm font-condensed font-bold whitespace-nowrap tracking-wide">
                             {p.name}
                           </span>
+                          {isVRPuesto(p.name) && <VRBadge />}
                         </div>
                         {tabPrice > 0 && (
                           <p
@@ -408,8 +550,9 @@ function ReservaContent() {
                             {mobilePuestoData.slots.map((slot, si) => {
                               const available = slot.available;
                               const isSelected =
-                                selectedPuestoId === activeMobilePuestoId &&
-                                selectedStartTime === slot.startTime;
+                                !!activeMobilePuestoId &&
+                                selectedStartTime === slot.startTime &&
+                                selectedIds.includes(activeMobilePuestoId);
                               return (
                                 <motion.button
                                   key={slot.startTime}
@@ -420,8 +563,7 @@ function ReservaContent() {
                                   transition={{ delay: si * 0.018, duration: 0.2 }}
                                   onClick={() => {
                                     if (available && activeMobilePuestoId) {
-                                      setSelectedPuestoId(activeMobilePuestoId);
-                                      setSelectedStartTime(slot.startTime);
+                                      toggleCell(activeMobilePuestoId, slot.startTime);
                                     }
                                   }}
                                   whileTap={available ? { scale: 0.92 } : {}}
@@ -465,6 +607,7 @@ function ReservaContent() {
                               <span className="inline-flex items-center gap-1.5 text-xs font-condensed font-semibold uppercase tracking-widest text-white/70">
                                 <Car className="h-3.5 w-3.5 text-[#E60012]/80 flex-shrink-0" />
                                 {p.name}
+                                {isVRPuesto(p.name) && <VRBadge />}
                               </span>
                               {tabPrice > 0 && (
                                 <span className="font-racing text-base tracking-wider text-[#E60012]">
@@ -494,17 +637,14 @@ function ReservaContent() {
                         {dayData.puestos.map((p) => {
                           const available = isAvailable(p.id, slotTime);
                           const isSelected =
-                            selectedPuestoId === p.id && selectedStartTime === slotTime;
+                            selectedStartTime === slotTime && selectedIds.includes(p.id);
                           return (
                             <td key={p.id} className="border-l border-white/5 p-1.5">
                               <motion.button
                                 type="button"
                                 disabled={!available}
                                 onClick={() => {
-                                  if (available) {
-                                    setSelectedPuestoId(p.id);
-                                    setSelectedStartTime(slotTime);
-                                  }
+                                  if (available) toggleCell(p.id, slotTime);
                                 }}
                                 whileHover={available ? { scale: 1.06 } : {}}
                                 whileTap={available ? { scale: 0.94 } : {}}
@@ -516,7 +656,7 @@ function ReservaContent() {
                                     : "cursor-not-allowed bg-white/5 text-white/20"
                                 }`}
                               >
-                                {available ? "LIBRE" : "—"}
+                                {isSelected ? "✓" : available ? "LIBRE" : "—"}
                               </motion.button>
                             </td>
                           );
@@ -532,35 +672,54 @@ function ReservaContent() {
 
         {/* ── Selection summary ────────────────────────────────────────── */}
         <AnimatePresence>
-          {selectedPuestoId && selectedStartTime && (
+          {hasSelection && selectedStartTime && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               className="mb-6 overflow-hidden"
             >
-              <div className="flex items-center gap-3 rounded-2xl border border-[#E60012]/40 bg-[#E60012]/10 px-4 py-3.5 shadow-[0_0_20px_rgba(230,0,18,0.1)]">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E60012] flex-shrink-0">
-                  <CheckCircle className="h-5 w-5 text-white" />
+              <div className="rounded-2xl border border-[#E60012]/40 bg-[#E60012]/10 px-4 py-3.5 shadow-[0_0_20px_rgba(230,0,18,0.1)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E60012] flex-shrink-0">
+                    {isGroup ? (
+                      <Users className="h-5 w-5 text-white" />
+                    ) : (
+                      <CheckCircle className="h-5 w-5 text-white" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-racing tracking-widest uppercase text-white">
+                      {isGroup
+                        ? `GRUPO · ${selectedIds.length} SIMULADORES`
+                        : selectedPuestos[0]?.name}
+                    </p>
+                    <p className="text-xs font-condensed text-white/50 tracking-wide mt-0.5">
+                      {fmt(selectedStartTime)} &nbsp;·&nbsp; {duration} MIN
+                    </p>
+                  </div>
+                  <button
+                    onClick={clearSelection}
+                    className="text-xs font-condensed tracking-widest uppercase text-[#E60012] hover:text-white transition flex-shrink-0"
+                  >
+                    CAMBIAR
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-racing tracking-widest uppercase text-white">
-                    {dayData?.puestos.find((p) => p.id === selectedPuestoId)?.name}
-                  </p>
-                  <p className="text-xs font-condensed text-white/50 tracking-wide mt-0.5">
-                    {fmt(selectedStartTime)} &nbsp;·&nbsp; {duration} MIN
-                    {priceStr && ` · ${priceStr}`}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedPuestoId(null);
-                    setSelectedStartTime(null);
-                  }}
-                  className="text-xs font-condensed tracking-widest uppercase text-[#E60012] hover:text-white transition flex-shrink-0"
-                >
-                  CAMBIAR
-                </button>
+
+                {isGroup && (
+                  <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[#E60012]/20 pt-3">
+                    {selectedPuestos.map((p) => (
+                      <span
+                        key={p.id}
+                        className="inline-flex items-center gap-1 rounded-md bg-[#E60012]/15 px-2 py-1 text-xs font-condensed tracking-wide text-white/80"
+                      >
+                        <Car className="h-3 w-3 text-[#E60012]" />
+                        {p.name}
+                        {isVRPuesto(p.name) && <VRBadge className="ml-0.5" />}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -612,12 +771,29 @@ function ReservaContent() {
           transition={{ duration: 0.45, delay: 0.24 }}
           className="rounded-2xl border border-white/10 bg-[#0A0A0C] p-5 shadow-xl"
         >
+          {isGroup && discountPct > 0 && (
+            <div className="mb-3 space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-condensed tracking-wide text-white/45">
+                <span>{selectedIds.length} simuladores · precio normal</span>
+                <span className="line-through">{baseTotalStr}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-[#E60012]/15 px-2 py-0.5 text-xs font-racing tracking-wider text-[#E60012]">
+                  <Users className="h-3 w-3" /> DESCUENTO GRUPO
+                </span>
+                <span className="text-sm font-racing tracking-wider text-[#E60012]">
+                  −{discountPct}%
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="mb-4 flex items-center justify-between">
             <span className="font-condensed text-xs tracking-widest uppercase text-white/55">
               TOTAL A PAGAR
             </span>
             <span className="font-racing text-3xl tracking-wider text-white">
-              {priceStr ?? (
+              {totalStr ?? (
                 <span className="text-white/20 text-lg">
                   Seleccioná un horario
                 </span>
@@ -626,15 +802,15 @@ function ReservaContent() {
           </div>
 
           <motion.button
-            whileHover={!loading && selectedPuestoId && selectedStartTime ? { scale: 1.01 } : {}}
-            whileTap={!loading && selectedPuestoId && selectedStartTime ? { scale: 0.98 } : {}}
+            whileHover={!loading && hasSelection ? { scale: 1.01 } : {}}
+            whileTap={!loading && hasSelection ? { scale: 0.98 } : {}}
             className={`w-full h-14 rounded-xl font-racing text-lg tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 ${
-              loading || !selectedPuestoId || !selectedStartTime
+              loading || !hasSelection
                 ? "bg-white/5 text-white/20 cursor-not-allowed border border-white/5"
                 : "bg-[#E60012] hover:bg-[#ff1a2b] text-white shadow-[0_0_24px_rgba(230,0,18,0.4)] border border-[#E60012]"
             }`}
             onClick={handleCheckout}
-            disabled={loading || !selectedPuestoId || !selectedStartTime}
+            disabled={loading || !hasSelection}
           >
             {loading ? (
               <>
@@ -753,8 +929,17 @@ function ReservaContent() {
       </section>
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
-      <footer className="bg-[#0A0A0C] border-t border-white/5 px-6 py-4 text-center">
-        <p className="text-white/15 font-condensed text-xs tracking-widest uppercase">
+      <footer className="bg-[#0A0A0C] border-t border-white/5 px-6 py-5 text-center">
+        <a
+          href="https://instagram.com/raceroom.ar"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-white/60 transition hover:border-[#E60012]/50 hover:text-white"
+        >
+          <Instagram className="h-4 w-4" />
+          <span className="font-condensed text-sm tracking-widest">@raceroom.ar</span>
+        </a>
+        <p className="mt-3 text-white/15 font-condensed text-xs tracking-widest uppercase">
           © {new Date().getFullYear()} Race Room
         </p>
       </footer>

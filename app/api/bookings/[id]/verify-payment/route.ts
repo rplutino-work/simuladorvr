@@ -114,21 +114,32 @@ export async function GET(
 
     const cancelToken = generateCancelToken();
 
-    await prisma.$transaction(async (tx) => {
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: { status: "PAID", code, paymentId: mpPaymentIdStr, cancelToken },
+    // Claim ATÓMICO (mismo patrón que el webhook, mercadopago/route.ts:308):
+    // confirmar SOLO si el booking sigue PENDING. Sin esto, el webhook y esta
+    // ruta confirmaban el mismo pago casi a la vez, cada uno con un código
+    // distinto, y el del email quedaba pisado → "Código inválido" en la tablet.
+    // Si el otro ganó primero (count===0), devolvemos SU código y no mandamos
+    // un segundo email.
+    const claimed = await prisma.booking.updateMany({
+      where: { id: booking.id, status: "PENDING" },
+      data: { status: "PAID", code, paymentId: mpPaymentIdStr, cancelToken },
+    });
+    if (claimed.count === 0) {
+      const current = await prisma.booking.findUnique({
+        where: { id },
+        include: { puesto: true },
       });
-      await tx.payment.upsert({
-        where: { bookingId: booking.id },
-        create: {
-          bookingId: booking.id,
-          mpPaymentId: mpPaymentIdStr,
-          amount: paidCents || booking.price,
-          status: "approved",
-        },
-        update: { status: "approved", mpPaymentId: mpPaymentIdStr },
-      });
+      return NextResponse.json(current ? safeBooking(current) : safeBooking(booking));
+    }
+    await prisma.payment.upsert({
+      where: { bookingId: booking.id },
+      create: {
+        bookingId: booking.id,
+        mpPaymentId: mpPaymentIdStr,
+        amount: paidCents || booking.price,
+        status: "approved",
+      },
+      update: { status: "approved", mpPaymentId: mpPaymentIdStr },
     });
 
     const bizSettings = await prisma.businessSettings.findFirst();

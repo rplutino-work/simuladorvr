@@ -18,13 +18,37 @@ type Booking = {
   puesto: { name: string };
 };
 
+type GroupStatus = {
+  status: string;
+  code: string | null;
+  count: number;
+  duration: number;
+  startTime: string | null;
+  total: number;
+  puestos: string[];
+};
+
+// A confirmation is either a single booking or a group — normalized to one view.
+type View = {
+  status: string;
+  code: string | null;
+  duration: number;
+  startTime: string | null;
+  customerEmail: string | null;
+  puestoLabel: string;
+  puestos: string[] | null;
+};
+
 function ConfirmationContent() {
   const searchParams = useSearchParams();
   const bookingId  = searchParams.get("bookingId");
+  const groupId    = searchParams.get("groupId");
   const mpPaymentId = searchParams.get("payment_id") ?? searchParams.get("collection_id");
   const mpStatus    = searchParams.get("status") ?? searchParams.get("collection_status");
+  const hasId = !!bookingId || !!groupId;
 
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [group, setGroup]     = useState<GroupStatus | null>(null);
   const [error, setError]     = useState<string | null>(null);
   const [copied, setCopied]   = useState(false);
   const [timedOut, setTimedOut] = useState(false);
@@ -39,15 +63,50 @@ function ConfirmationContent() {
 
   async function fetchBooking() {
     if (!bookingId) return;
-    const res = await fetch(`/api/bookings/${bookingId}`);
+    let res: Response;
+    try {
+      res = await fetch(`/api/bookings/${bookingId}`);
+    } catch {
+      return; // error de red transitorio → el intervalo reintenta, no cortar
+    }
     if (res.ok) {
       const data: Booking = await res.json();
       setBooking(data);
-      if ((data.status === "PAID" || data.status === "ACTIVE") && data.code) {
-        if (pollRef.current) clearInterval(pollRef.current);
-      }
-    } else {
+      // Cortar el poll en cualquier estado FINAL — incluidos EXPIRED/CANCELLED,
+      // que no tienen código (antes seguía pegándole al server para siempre).
+      const resolved =
+        ((data.status === "PAID" || data.status === "ACTIVE") && !!data.code) ||
+        data.status === "EXPIRED" ||
+        data.status === "CANCELLED" ||
+        data.status === "FINISHED";
+      if (resolved && pollRef.current) clearInterval(pollRef.current);
+    } else if (res.status === 404) {
+      // Sólo un 404 es terminal; un 5xx momentáneo (deploy/cold start) NO debe
+      // matar la pantalla — se sigue reintentando.
       setError("Reserva no encontrada");
+      if (pollRef.current) clearInterval(pollRef.current);
+    }
+  }
+
+  async function fetchGroup() {
+    if (!groupId) return;
+    let res: Response;
+    try {
+      res = await fetch(`/api/bookings/group/${groupId}`);
+    } catch {
+      return; // error de red transitorio → reintentar
+    }
+    if (res.ok) {
+      const data: GroupStatus = await res.json();
+      setGroup(data);
+      const resolved =
+        ((data.status === "PAID" || data.status === "ACTIVE") && !!data.code) ||
+        data.status === "EXPIRED" ||
+        data.status === "CANCELLED" ||
+        data.status === "FINISHED";
+      if (resolved && pollRef.current) clearInterval(pollRef.current);
+    } else if (res.status === 404) {
+      setError("Grupo no encontrado");
       if (pollRef.current) clearInterval(pollRef.current);
     }
   }
@@ -69,21 +128,67 @@ function ConfirmationContent() {
     }
   }
 
+  async function verifyGroupWithMP() {
+    if (!groupId || !mpPaymentId || verifiedRef.current) return;
+    verifiedRef.current = true;
+    try {
+      const res = await fetch(`/api/bookings/group/${groupId}/verify-payment?paymentId=${mpPaymentId}`);
+      if (res.ok) {
+        const data: GroupStatus = await res.json();
+        setGroup(data);
+        if ((data.status === "PAID" || data.status === "ACTIVE") && data.code) {
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+      }
+    } catch (err) {
+      console.error("[confirm] group verify-payment:", err);
+    }
+  }
+
+  const poll = groupId ? fetchGroup : fetchBooking;
+
   useEffect(() => {
-    if (!bookingId) return;
-    fetchBooking();
-    if (mpPaymentId && mpStatus === "approved") verifyWithMP();
-    pollRef.current = setInterval(fetchBooking, 6_000);
+    if (!hasId) return;
+    poll();
+    if (mpPaymentId && mpStatus === "approved") {
+      if (groupId) verifyGroupWithMP();
+      else verifyWithMP();
+    }
+    pollRef.current = setInterval(poll, 6_000);
     timeoutRef.current = setTimeout(() => setTimedOut(true), PROCESSING_TIMEOUT_MS);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId]);
+  }, [bookingId, groupId]);
+
+  const view: View | null = groupId
+    ? group
+      ? {
+          status: group.status,
+          code: group.code,
+          duration: group.duration,
+          startTime: group.startTime,
+          customerEmail: null,
+          puestoLabel: `${group.count} simuladores`,
+          puestos: group.puestos,
+        }
+      : null
+    : booking
+    ? {
+        status: booking.status,
+        code: booking.code,
+        duration: booking.duration,
+        startTime: booking.startTime,
+        customerEmail: booking.customerEmail,
+        puestoLabel: booking.puesto.name,
+        puestos: null,
+      }
+    : null;
 
   useEffect(() => {
-    if (booking?.code) {
+    if (view?.code) {
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -93,17 +198,20 @@ function ConfirmationContent() {
         timeoutRef.current = null;
       }
     }
-  }, [booking?.code]);
+  }, [view?.code]);
 
   function handleCopy() {
-    if (booking?.code) {
-      navigator.clipboard.writeText(booking.code);
+    if (view?.code) {
+      navigator.clipboard.writeText(view.code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
   }
 
-  const isPaid = (booking?.status === "PAID" || booking?.status === "ACTIVE") && booking?.code;
+  const isPaid = (view?.status === "PAID" || view?.status === "ACTIVE") && !!view?.code;
+  // Reserva que no prosperó (venció sin pago, o fue cancelada) → estado terminal,
+  // así no queda "procesando" para siempre.
+  const isDead = view?.status === "EXPIRED" || view?.status === "CANCELLED";
 
   return (
     <div className="min-h-screen bg-[#0A0A0C]">
@@ -130,8 +238,8 @@ function ConfirmationContent() {
       <div className="container mx-auto flex min-h-[calc(100vh-56px)] items-center justify-center px-4 py-8">
         <div className="w-full max-w-sm">
 
-          {/* ── No bookingId ───────────────────────────────────────────── */}
-          {!bookingId && (
+          {/* ── No id ──────────────────────────────────────────────────── */}
+          {!hasId && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
               className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center"
             >
@@ -147,7 +255,7 @@ function ConfirmationContent() {
           )}
 
           {/* ── Error ──────────────────────────────────────────────────── */}
-          {bookingId && error && (
+          {hasId && error && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
               className="rounded-2xl border border-[#E60012]/30 bg-[#E60012]/10 p-8 text-center"
             >
@@ -163,7 +271,7 @@ function ConfirmationContent() {
           )}
 
           {/* ── Confirmed ─────────────────────────────────────────────── */}
-          {bookingId && !error && isPaid && (
+          {hasId && !error && isPaid && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -194,36 +302,57 @@ function ConfirmationContent() {
                     transition={{ delay: 0.2 }}
                     className="font-racing text-5xl sm:text-6xl tracking-[0.3em] text-white drop-shadow-[0_0_20px_rgba(230,0,18,0.5)]"
                   >
-                    {booking?.code}
+                    {view?.code}
                   </motion.p>
+                  {view?.puestos && (
+                    <p className="mt-2 font-condensed text-xs tracking-widest uppercase text-white/40">
+                      Un solo código para todo el grupo
+                    </p>
+                  )}
                 </div>
 
                 <div className="px-6 py-5 space-y-3">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                      <p className="font-condensed text-xs font-semibold tracking-widest uppercase text-white/30 mb-0.5">Simulador</p>
-                      <p className="font-condensed font-bold text-white truncate">{booking?.puesto.name}</p>
+                      <p className="font-condensed text-xs font-semibold tracking-widest uppercase text-white/30 mb-0.5">
+                        {view?.puestos ? "Simuladores" : "Simulador"}
+                      </p>
+                      <p className="font-condensed font-bold text-white truncate">{view?.puestoLabel}</p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                       <p className="font-condensed text-xs font-semibold tracking-widest uppercase text-white/30 mb-0.5">Duración</p>
-                      <p className="font-racing text-lg text-white tracking-wider">{booking?.duration} min</p>
+                      <p className="font-racing text-lg text-white tracking-wider">{view?.duration} min</p>
                     </div>
-                    {booking?.startTime && (
+                    {view?.puestos && view.puestos.length > 0 && (
+                      <div className="col-span-2 flex flex-wrap gap-1.5">
+                        {view.puestos.map((name, idx) => (
+                          <span
+                            key={`${name}-${idx}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs font-condensed tracking-wide text-white/70"
+                          >
+                            <Car className="h-3 w-3 text-[#E60012]" />
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {view?.startTime && (
                       <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 p-3">
                         <p className="font-condensed text-xs font-semibold tracking-widest uppercase text-white/30 mb-0.5">Horario</p>
                         <p className="font-condensed font-bold text-white">
-                          {new Date(booking.startTime).toLocaleString("es-AR", {
+                          {new Date(view.startTime).toLocaleString("es-AR", {
                             dateStyle: "medium",
                             timeStyle: "short",
+                            timeZone: "America/Argentina/Buenos_Aires",
                           })}
                         </p>
                       </div>
                     )}
                   </div>
 
-                  {booking?.customerEmail && (
+                  {view?.customerEmail && (
                     <p className="text-xs text-center font-condensed tracking-wide text-white/30">
-                      Código enviado a {booking.customerEmail}
+                      Código enviado a {view.customerEmail}
                     </p>
                   )}
 
@@ -256,7 +385,7 @@ function ConfirmationContent() {
           )}
 
           {/* ── Processing (still within the fast window) ─────────────── */}
-          {bookingId && !error && !isPaid && !timedOut && (
+          {hasId && !error && !isPaid && !isDead && !timedOut && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
               <div className="rounded-2xl border border-white/10 bg-white/5">
                 <div className="flex flex-col items-center gap-4 px-6 py-10">
@@ -293,8 +422,28 @@ function ConfirmationContent() {
             </motion.div>
           )}
 
+          {/* ── Reserva no completada (venció / cancelada) ───────────────── */}
+          {hasId && !error && isDead && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center"
+            >
+              <AlertCircle className="mx-auto h-10 w-10 text-white/30 mb-4" />
+              <h2 className="font-racing tracking-wider text-white text-xl">RESERVA NO COMPLETADA</h2>
+              <p className="mt-1.5 text-sm text-white/50 font-condensed leading-relaxed">
+                {view?.status === "CANCELLED"
+                  ? "Esta reserva fue cancelada."
+                  : "El pago no se completó a tiempo y la reserva venció. Si te descontaron el dinero, escribinos — no hace falta que pagues de nuevo."}
+              </p>
+              <Link href="/reserva" className="mt-5 block">
+                <button className="w-full h-11 rounded-xl bg-[#E60012] font-condensed font-bold tracking-widest uppercase text-sm text-white hover:bg-[#ff1a2b] transition">
+                  HACER UNA NUEVA RESERVA
+                </button>
+              </Link>
+            </motion.div>
+          )}
+
           {/* ── Taking longer than expected ───────────────────────────── */}
-          {bookingId && !error && !isPaid && timedOut && (
+          {hasId && !error && !isPaid && !isDead && timedOut && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
               <div className="rounded-2xl border border-white/10 bg-white/5">
                 <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
@@ -316,13 +465,20 @@ function ConfirmationContent() {
                       </p>
                     )}
                     <p className="mt-2 text-xs text-white/25 font-mono">
-                      Reserva #{bookingId}
+                      {groupId ? `Grupo #${groupId.slice(0, 8)}` : `Reserva #${bookingId}`}
                     </p>
                   </div>
                 </div>
                 <div className="border-t border-white/5 px-6 py-4 space-y-2">
                   <button
-                    onClick={() => { setTimedOut(false); fetchBooking(); }}
+                    onClick={() => {
+                      setTimedOut(false);
+                      poll();
+                      // Re-armar la ventana: si no, tras un "revisar" volvía a
+                      // quedar en el spinner sin caer nunca a "tardando".
+                      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                      timeoutRef.current = setTimeout(() => setTimedOut(true), PROCESSING_TIMEOUT_MS);
+                    }}
                     className="w-full h-11 rounded-xl bg-[#E60012] hover:bg-[#ff1a2b] font-condensed font-bold tracking-widest uppercase text-sm text-white transition"
                   >
                     REVISAR DE NUEVO

@@ -90,7 +90,7 @@ function DeviceStatusSection() {
         .catch(() => {});
     };
     load();
-    const poll = setInterval(load, 5000);
+    const poll = setInterval(load, 15000); // 15s (antes 5s) — monitoreo
     setNowMs(Date.now());
     const clock = setInterval(() => setNowMs(Date.now()), 1000);
     return () => {

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { isSlotAvailable } from "@/lib/availability";
+import { withPuestoLock } from "@/lib/booking-lock";
 import { logger } from "@/lib/logger";
 
 /**
@@ -113,7 +115,26 @@ export async function POST(req: NextRequest) {
 
       const now = new Date();
       const newEnd = new Date(now.getTime() + directBooking.duration * 60 * 1000);
-      await prisma.$transaction(async (tx) => {
+      // La disponibilidad se chequeó al COMPRAR; minutos después, al confirmar el
+      // pago, el puesto puede estar ya ocupado. Activar bajo lock + re-chequeo
+      // para no dejar dos sesiones vivas en el mismo simulador.
+      const activated = await withPuestoLock(directBooking.puestoId, async (tx) => {
+        // Re-leer el estado DENTRO del lock: MP entrega el webhook 2+ veces y las
+        // dos podían leer PENDING antes de que la primera activara. Sin este
+        // re-chequeo, la segunda volvía a escribir startTime=now, corriendo el
+        // fin del turno hacia adelante (más tiempo del pagado).
+        const fresh = await tx.booking.findUnique({
+          where: { id: bookingId },
+          select: { status: true },
+        });
+        if (!fresh || fresh.status !== "PENDING") return "already" as const;
+        const busy = await tx.booking.findFirst({
+          where: { puestoId: directBooking.puestoId, status: "ACTIVE", id: { not: bookingId } },
+          select: { id: true },
+        });
+        if (busy) return "collision" as const;
+        const free = await isSlotAvailable(directBooking.puestoId, now, newEnd, bookingId, tx);
+        if (!free) return "collision" as const;
         await tx.booking.update({
           where: { id: bookingId },
           data: { status: "ACTIVE", startTime: now, endTime: newEnd, paymentId: mpPaymentId },
@@ -123,7 +144,22 @@ export async function POST(req: NextRequest) {
           create: { bookingId, mpPaymentId, amount: paidCents || directBooking.price, status: "approved" },
           update: { status: "approved", mpPaymentId },
         });
+        return "ok" as const;
       });
+      if (activated === "already") {
+        return NextResponse.json({ ok: true, alreadyApplied: true });
+      }
+      if (activated === "collision") {
+        // Pagó pero el puesto ya está ocupado → registrar el pago (para
+        // reconciliación/reembolso) y NO activar una segunda sesión.
+        await prisma.payment.upsert({
+          where: { bookingId },
+          create: { bookingId, mpPaymentId, amount: paidCents || directBooking.price, status: "approved" },
+          update: { status: "approved", mpPaymentId },
+        });
+        logger.warn("webhook.direct.collision", { bookingId, puestoId: directBooking.puestoId });
+        return NextResponse.json({ ok: true, collision: true });
+      }
       return NextResponse.json({ ok: true });
     }
 
@@ -140,27 +176,130 @@ export async function POST(req: NextRequest) {
       if (!extBooking || extBooking.status !== "ACTIVE") {
         return NextResponse.json({ ok: true });
       }
-      // Idempotency: MP delivers each notification 2+ times. If this exact
-      // payment was already applied, do nothing (otherwise the session gets
-      // extended twice for one payment).
-      if (extBooking.paymentId === mpPaymentId) {
-        return NextResponse.json({ ok: true, alreadyApplied: true });
-      }
 
-      const currentEnd = extBooking.endTime ?? new Date();
-      const newEnd = new Date(currentEnd.getTime() + additionalMinutes * 60 * 1000);
-      await prisma.$transaction(async (tx) => {
+      const extended = await withPuestoLock(extBooking.puestoId, async (tx) => {
+        // Re-leer DENTRO del lock. Idempotencia por-PAGO: el ledger Payment se
+        // pisa en cada extensión (una fila por booking), así que el chequeo viejo
+        // `paymentId === mpPaymentId` sólo recordaba la ÚLTIMA extensión — un
+        // reenvío tardío de MP de una extensión ANTERIOR volvía a sumar minutos
+        // gratis. Ahora guardamos cada mpPaymentId aplicado en extPaymentIds y lo
+        // chequeamos acá.
+        const fresh = await tx.booking.findUnique({
+          where: { id: bookingId },
+          select: { status: true, endTime: true, paymentId: true, extPaymentIds: true, puestoId: true },
+        });
+        if (!fresh || fresh.status !== "ACTIVE") return "gone" as const;
+        if (fresh.paymentId === mpPaymentId || fresh.extPaymentIds.includes(mpPaymentId)) {
+          return "already" as const;
+        }
+        const currentEnd = fresh.endTime ?? new Date();
+        const newEnd = new Date(currentEnd.getTime() + additionalMinutes * 60 * 1000);
+        // La extensión no puede pisar la próxima reserva del simulador.
+        const free = await isSlotAvailable(fresh.puestoId, currentEnd, newEnd, bookingId, tx);
+        if (!free) return "collision" as const;
         await tx.booking.update({
           where: { id: bookingId },
-          data: { endTime: newEnd, paymentId: mpPaymentId },
+          data: { endTime: newEnd, paymentId: mpPaymentId, extPaymentIds: { push: mpPaymentId } },
         });
         await tx.payment.upsert({
           where: { bookingId },
           create: { bookingId, mpPaymentId, amount: paidCents, status: "approved" },
           update: { status: "approved", mpPaymentId },
         });
+        return "ok" as const;
       });
+      if (extended === "gone") return NextResponse.json({ ok: true });
+      if (extended === "already") return NextResponse.json({ ok: true, alreadyApplied: true });
+      if (extended === "collision") {
+        // Pagó la extensión pero se superpone con la próxima reserva → no aplicar
+        // (dejamos el pago sin tocar; el reintegro se gestiona a mano por MP).
+        logger.warn("webhook.ext.collision", { bookingId });
+        return NextResponse.json({ ok: true, collision: true });
+      }
       return NextResponse.json({ ok: true });
+    }
+
+    // ── Group reservation payment: "group-{groupId}" ──────────────────────
+    if (externalRef.startsWith("group-")) {
+      const groupId = externalRef.slice("group-".length);
+      if (!groupId) {
+        return NextResponse.json({ error: "Invalid group reference" }, { status: 400 });
+      }
+      const groupBookings = await prisma.booking.findMany({ where: { groupId } });
+      if (!groupBookings.length) {
+        return NextResponse.json({ error: "Group not found" }, { status: 404 });
+      }
+      // Idempotent: MP re-delivers notifications. If none are PENDING, done.
+      if (groupBookings.every((b) => b.status !== "PENDING")) {
+        return NextResponse.json({ ok: true, alreadyApplied: true });
+      }
+      const groupTotal = groupBookings.reduce((s, b) => s + b.price, 0);
+      if (paidCents > 0 && paidCents < groupTotal) {
+        return NextResponse.json({ ok: true, underpaid: true });
+      }
+
+      // One shared code for the whole group.
+      let code = generateBookingCode();
+      let clash = await prisma.booking.findFirst({
+        where: { groupCode: code, status: { in: ["PENDING", "PAID", "ACTIVE"] } },
+      });
+      while (clash) {
+        code = generateBookingCode();
+        clash = await prisma.booking.findFirst({
+          where: { groupCode: code, status: { in: ["PENDING", "PAID", "ACTIVE"] } },
+        });
+      }
+
+      // Claim ATÓMICO del grupo (mismo patrón que la reserva simple, más abajo):
+      // una sola sentencia marca PAID+groupCode a los que sigan PENDING. Si otra
+      // entrega del webhook (o el verify-payment grupal) ya lo confirmó,
+      // count===0 → idempotente, sin pisar el groupCode ya emitido ni mandar un
+      // segundo email.
+      const claimed = await prisma.booking.updateMany({
+        where: { groupId, status: "PENDING" },
+        data: { status: "PAID", groupCode: code, paymentId: mpPaymentId },
+      });
+      if (claimed.count === 0) {
+        return NextResponse.json({ ok: true, alreadyApplied: true });
+      }
+      for (const b of groupBookings) {
+        if (b.status !== "PENDING") continue;
+        await prisma.payment.upsert({
+          where: { bookingId: b.id },
+          create: { bookingId: b.id, mpPaymentId, amount: b.price, status: "approved" },
+          update: { status: "approved", mpPaymentId },
+        });
+      }
+
+      // Single confirmation email with the group code.
+      const email = groupBookings.find((b) => b.customerEmail)?.customerEmail;
+      if (email) {
+        const bizSettings = await prisma.businessSettings.findFirst();
+        if (bizSettings?.emailEnabled !== false) {
+          const first = groupBookings[0];
+          const when = first.startTime
+            ? first.startTime.toLocaleString("es-AR", {
+                dateStyle: "long",
+                timeStyle: "short",
+                timeZone: "America/Argentina/Buenos_Aires",
+              })
+            : "A confirmar";
+          try {
+            await sendBookingConfirmationEmail(
+              email,
+              code,
+              first.duration,
+              when,
+              `Grupo de ${groupBookings.length} simuladores`,
+              bizSettings?.emailFrom,
+              null
+            );
+          } catch (e) {
+            logger.error("webhook.group.email", { groupId }, e);
+          }
+        }
+      }
+      return NextResponse.json({ ok: true, group: true });
     }
 
     // ── Normal booking payment ─────────────────────────────────────────────
@@ -188,16 +327,21 @@ export async function POST(req: NextRequest) {
     }
     const cancelToken = generateCancelToken();
 
-    await prisma.$transaction(async (tx) => {
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: { status: "PAID", code, paymentId: mpPaymentId, cancelToken },
-      });
-      await tx.payment.upsert({
-        where: { bookingId: booking.id },
-        create: { bookingId: booking.id, mpPaymentId, amount: paidCents || booking.price, status: "approved" },
-        update: { status: "approved", mpPaymentId },
-      });
+    // Claim ATÓMICO: MP entrega el webhook 2+ veces casi simultáneo. Sin esto,
+    // dos invocaciones leían PENDING, generaban códigos distintos y el del email
+    // quedaba pisado → "Código inválido" en la tablet. Con el updateMany
+    // condicional, solo UNA gana (count===1) y hace el email; la otra corta.
+    const claimed = await prisma.booking.updateMany({
+      where: { id: booking.id, status: "PENDING" },
+      data: { status: "PAID", code, paymentId: mpPaymentId, cancelToken },
+    });
+    if (claimed.count === 0) {
+      return NextResponse.json({ ok: true, alreadyApplied: true });
+    }
+    await prisma.payment.upsert({
+      where: { bookingId: booking.id },
+      create: { bookingId: booking.id, mpPaymentId, amount: paidCents || booking.price, status: "approved" },
+      update: { status: "approved", mpPaymentId },
     });
 
     const bizSettings = await prisma.businessSettings.findFirst();

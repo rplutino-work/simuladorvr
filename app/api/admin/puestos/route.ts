@@ -33,7 +33,12 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.role || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const body = await req.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
   const parsed = createPuestoSchema.safeParse({
     ...body,
     price30: Number(body.price30 ?? 0) * 100,

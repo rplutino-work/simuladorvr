@@ -47,6 +47,7 @@ export default function PuestosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ name: "", price30: "", price60: "", price120: "" });
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchPuestos = () => {
     fetch("/api/admin/puestos")
@@ -78,12 +79,22 @@ export default function PuestosPage() {
   }
 
   async function handleToggle(id: string, active: boolean) {
-    await fetch(`/api/admin/puestos/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: !active }),
-    });
-    fetchPuestos();
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/admin/puestos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !active }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "No se pudo cambiar el estado del simulador");
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "No se pudo cambiar el estado");
+    } finally {
+      fetchPuestos();
+    }
   }
 
   function startEdit(p: Puesto) {
@@ -98,23 +109,42 @@ export default function PuestosPage() {
 
   async function saveEdit(id: string) {
     setSaving(true);
-    await fetch(`/api/admin/puestos/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: editForm.name,
-        price30: parseFloat(editForm.price30) || 0,
-        price60: parseFloat(editForm.price60) || 0,
-        price120: parseFloat(editForm.price120) || 0,
-      }),
-    });
-    setSaving(false);
-    setEditingId(null);
-    fetchPuestos();
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/admin/puestos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name,
+          price30: parseFloat(editForm.price30) || 0,
+          price60: parseFloat(editForm.price60) || 0,
+          price120: parseFloat(editForm.price120) || 0,
+        }),
+      });
+      if (!res.ok) {
+        // Antes se ignoraba la respuesta: si el guardado fallaba, la fila volvía a
+        // los precios viejos como si se hubiera guardado (los precios manejan el
+        // checkout real del cliente). Ahora mantenemos el editor abierto y avisamos.
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "No se pudieron guardar los cambios");
+      }
+      setEditingId(null);
+      fetchPuestos();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "No se pudieron guardar los cambios");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {actionError}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Simuladores</h1>

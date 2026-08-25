@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { generateBookingCode, generateCancelToken } from "@/lib/code-generator";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { isSlotAvailable } from "@/lib/availability";
+import { withPuestoLock } from "@/lib/booking-lock";
 import { z } from "zod";
 
 const manualBookingSchema = z.object({
@@ -27,7 +28,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
   const parsed = manualBookingSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -49,14 +55,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Puesto no encontrado" }, { status: 404 });
   }
 
-  const available = await isSlotAvailable(puestoId, startTime, endTime);
-  if (!available) {
-    return NextResponse.json(
-      { error: "El horario ya está ocupado" },
-      { status: 409 }
-    );
-  }
-
   const priceKey = `price${duration}` as "price30" | "price60" | "price120";
   const price = puesto[priceKey];
   if (!price || price <= 0) {
@@ -75,7 +73,11 @@ export async function POST(req: NextRequest) {
   }
   const cancelToken = generateCancelToken();
 
-  const booking = await prisma.$transaction(async (tx) => {
+  // Check disponibilidad + create bajo lock por puesto, para que dos operadores
+  // (o operador + cliente online) no puedan tomar el mismo slot a la vez.
+  const booking = await withPuestoLock(puestoId, async (tx) => {
+    const available = await isSlotAvailable(puestoId, startTime, endTime, undefined, tx);
+    if (!available) return null;
     const b = await tx.booking.create({
       data: {
         puestoId,
@@ -103,6 +105,9 @@ export async function POST(req: NextRequest) {
     });
     return b;
   });
+  if (!booking) {
+    return NextResponse.json({ error: "El horario ya está ocupado" }, { status: 409 });
+  }
 
   // Send confirmation email if requested and email provided
   if (sendEmail && customerEmail) {

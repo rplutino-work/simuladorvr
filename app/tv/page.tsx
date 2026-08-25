@@ -4,16 +4,22 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
 
-export default function TabletSelectorPage() {
+/**
+ * TV puesto selector — lets ONE TV build (pointed at /tv) work on every TV:
+ * each TV picks its simulator once and it's remembered in localStorage, exactly
+ * like the tablet selector. Avoids baking a per-device URL (/tv/1, /tv/2…) into
+ * a separate APK per TV.
+ */
+export default function TvSelectorPage() {
   const router = useRouter();
   const [puestos, setPuestos] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let saved: string | null = null;
-    try { saved = localStorage.getItem("simuladorvr_puesto"); } catch { /* storage bloqueado */ }
+    try { saved = localStorage.getItem("simuladorvr_tv_puesto"); } catch { /* storage bloqueado */ }
     if (saved) {
-      router.replace(`/tablet/${saved}`);
+      router.replace(`/tv/${saved}`);
       return;
     }
     // Estamos en el selector (sin puesto): avisar a la app nativa que la página
@@ -32,14 +38,14 @@ export default function TabletSelectorPage() {
   }, [router]);
 
   const selectPuesto = (id: string) => {
-    try { localStorage.setItem("simuladorvr_puesto", id); } catch { /* storage bloqueado */ }
+    try { localStorage.setItem("simuladorvr_tv_puesto", id); } catch { /* storage bloqueado */ }
     // Persistencia NATIVA: guarda el puesto en SharedPreferences vía el bridge,
     // así sobrevive borrado de caché/localStorage y no vuelve a preguntar nunca.
     try {
       (window as unknown as { NativeBridge?: { setDeviceConfig?: (p: string, t: string) => void } })
-        .NativeBridge?.setDeviceConfig?.(id, "tablet");
+        .NativeBridge?.setDeviceConfig?.(id, "tv");
     } catch { /* no estamos en la app nativa */ }
-    router.replace(`/tablet/${id}`);
+    router.replace(`/tv/${id}`);
   };
 
   if (loading) {
@@ -66,7 +72,7 @@ export default function TabletSelectorPage() {
           className="h-32 w-auto mx-auto drop-shadow-[0_0_30px_rgba(230,0,18,0.35)]"
         />
         <p className="text-white/60 font-condensed text-lg tracking-widest mt-4 uppercase">
-          Seleccioná el puesto de esta tablet
+          Seleccioná el puesto de esta TV
         </p>
       </motion.div>
 

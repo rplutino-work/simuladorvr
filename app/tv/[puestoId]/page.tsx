@@ -15,7 +15,7 @@ type SessionData = {
 
 type TVState = "off" | "idle" | "redirecting" | "game" | "finished";
 
-const POLL_MS = 3000;
+const POLL_MS = 6000; // 6s (antes 3s) — detectar inicio/fin de turno
 const REDIRECT_DELAY_MS = 3000;
 
 function RacingLines() {
@@ -82,6 +82,7 @@ export default function TVPage() {
   const [pollMs, setPollMs] = useState(POLL_MS);
   const prevSessionRef = useRef<string | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenStateRef = useRef<boolean>(true);
   const shownFinishedForRef = useRef<string | null>(null);
 
@@ -138,6 +139,13 @@ export default function TVPage() {
 
         if (!prevSessionRef.current || prevSessionRef.current !== data.session.bookingId) {
           prevSessionRef.current = data.session.bookingId;
+          // Una sesión nueva cancela cualquier timer pendiente de "finished→idle"
+          // de la sesión anterior; si no, ese timer forzaba idle/setSession(null)
+          // en medio de la sesión nueva.
+          if (finishedTimerRef.current) {
+            clearTimeout(finishedTimerRef.current);
+            finishedTimerRef.current = null;
+          }
           tryNativeBridge("turnOn");
           setState("redirecting");
 
@@ -149,6 +157,11 @@ export default function TVPage() {
             // aunque el WebView se congele mientras está en HDMI.
             const msLeft = Math.max(0, new Date(sessionEndTime).getTime() - Date.now());
             tryNativeBridge("scheduleReturn", msLeft);
+            // "Últimos minutos" banner drawn over the game (native overlay).
+            const WARN_MS = 5 * 60 * 1000;
+            const startIn = Math.max(0, msLeft - WARN_MS);
+            const windowMs = Math.min(msLeft, WARN_MS);
+            tryNativeBridge("showEndingWarning", startIn, windowMs, data.session?.puestoName ?? "");
             tryNativeBridge("switchToHdmi1");
             setState("game");
           }, REDIRECT_DELAY_MS);
@@ -158,10 +171,21 @@ export default function TVPage() {
           const finishedId = prevSessionRef.current;
           prevSessionRef.current = null;
           shownFinishedForRef.current = finishedId;
+          // La sesión desapareció (cancelada/terminada) durante los 3s de
+          // "preparando": cancelar el redirect pendiente, si no el timer viejo
+          // igual hacía switchToHdmi1 → prendía el juego para una sesión muerta
+          // (riesgo de juego gratis).
+          if (redirectTimerRef.current) {
+            clearTimeout(redirectTimerRef.current);
+            redirectTimerRef.current = null;
+          }
           tryNativeBridge("cancelScheduledReturn");
+          tryNativeBridge("cancelEndingWarning");
           tryNativeBridge("switchToApp");
           setState("finished");
-          setTimeout(() => {
+          if (finishedTimerRef.current) clearTimeout(finishedTimerRef.current);
+          finishedTimerRef.current = setTimeout(() => {
+            finishedTimerRef.current = null;
             setState("idle");
             setSession(null);
           }, 5000);
@@ -177,7 +201,9 @@ export default function TVPage() {
           shownFinishedForRef.current = data.recentlyFinished.bookingId;
           tryNativeBridge("switchToApp");
           setState("finished");
-          setTimeout(() => {
+          if (finishedTimerRef.current) clearTimeout(finishedTimerRef.current);
+          finishedTimerRef.current = setTimeout(() => {
+            finishedTimerRef.current = null;
             setState("idle");
             setSession(null);
           }, 5000);
@@ -214,13 +240,14 @@ export default function TVPage() {
       }).catch(() => {});
     };
     ping();
-    const id = setInterval(ping, 15000);
+    const id = setInterval(ping, 60000); // 60s (antes 15s) — el nativo ya reporta
     return () => clearInterval(id);
   }, [resolvedId]);
 
   useEffect(() => {
     return () => {
       if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+      if (finishedTimerRef.current) clearTimeout(finishedTimerRef.current);
     };
   }, []);
 
@@ -261,19 +288,18 @@ export default function TVPage() {
                 width={512}
                 height={512}
                 priority
-                className="h-48 md:h-64 w-auto mx-auto drop-shadow-[0_0_60px_rgba(230,0,18,0.4)]"
+                className="h-64 md:h-80 lg:h-96 w-auto mx-auto drop-shadow-[0_0_60px_rgba(230,0,18,0.4)]"
               />
             </motion.div>
 
-            <p className="font-condensed text-xl text-white/50 tracking-[0.4em] mt-10 uppercase">
+            <p className="font-condensed text-lg md:text-xl text-white/50 tracking-[0.4em] mt-8 uppercase flex items-center gap-3">
+              <motion.span
+                className="inline-block w-2.5 h-2.5 rounded-full bg-green-500"
+                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
               {puestoName || `Puesto ${rawPuestoId}`} — Disponible
             </p>
-
-            <motion.div
-              className="mt-10 w-3 h-3 rounded-full bg-green-500"
-              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
           </motion.div>
         )}
 

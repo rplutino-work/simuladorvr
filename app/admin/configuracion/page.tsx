@@ -21,6 +21,7 @@ type Settings = {
   emailFrom: string | null;
   cancelMode: "MANUAL" | "AUTOMATIC";
   contactPhone: string | null;
+  trialCooldownMin: number;
 };
 
 type ScheduleForm = {
@@ -31,6 +32,7 @@ type ScheduleForm = {
   allowReschedule: boolean;
   cancelLimitHours: number;
   negativeMarginMinutes: number;
+  trialCooldownMin: number;
 };
 
 const RED_BTN = "bg-[#E60012] text-white hover:bg-[#c00010]";
@@ -94,6 +96,7 @@ export default function ConfiguracionPage() {
     allowReschedule: true,
     cancelLimitHours: 24,
     negativeMarginMinutes: 0,
+    trialCooldownMin: 10,
   });
   const [emailForm, setEmailForm] = useState({ emailEnabled: true, emailFrom: "" });
   const [cancelRefundForm, setCancelRefundForm] = useState<{ cancelMode: "MANUAL" | "AUTOMATIC"; contactPhone: string }>({
@@ -108,6 +111,9 @@ export default function ConfiguracionPage() {
   // Group discount
   const [savingGroup, setSavingGroup] = useState(false);
   const [groupOk, setGroupOk] = useState(false);
+  // Antes los guardados hacían `catch { console.error }` sin avisar: si el PATCH
+  // fallaba, el admin creía que había guardado. Ahora mostramos el error.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [groupForm, setGroupForm] = useState<{
     enabled: boolean;
     tiers: Record<string, number>;
@@ -129,6 +135,7 @@ export default function ConfiguracionPage() {
           allowReschedule: data.allowReschedule,
           cancelLimitHours: data.cancelLimitHours,
           negativeMarginMinutes: data.negativeMarginMinutes,
+          trialCooldownMin: data.trialCooldownMin ?? 10,
         });
         setEmailForm({ emailEnabled: data.emailEnabled ?? true, emailFrom: data.emailFrom ?? "" });
         setCancelRefundForm({ cancelMode: data.cancelMode ?? "MANUAL", contactPhone: data.contactPhone ?? "" });
@@ -145,6 +152,7 @@ export default function ConfiguracionPage() {
   }, []);
 
   async function patch(body: object) {
+    setSaveError(null);
     const res = await fetch("/api/admin/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -165,6 +173,7 @@ export default function ConfiguracionPage() {
       setTimeout(() => setScheduleOk(false), 3000);
     } catch (err) {
       console.error(err);
+      setSaveError(err instanceof Error ? err.message : "No se pudo guardar. Reintentá.");
     } finally {
       setSavingSchedule(false);
     }
@@ -180,6 +189,7 @@ export default function ConfiguracionPage() {
       setTimeout(() => setEmailOk(false), 3000);
     } catch (err) {
       console.error(err);
+      setSaveError(err instanceof Error ? err.message : "No se pudo guardar. Reintentá.");
     } finally {
       setSavingEmail(false);
     }
@@ -195,6 +205,7 @@ export default function ConfiguracionPage() {
       setTimeout(() => setCancelOk(false), 3000);
     } catch (err) {
       console.error(err);
+      setSaveError(err instanceof Error ? err.message : "No se pudo guardar. Reintentá.");
     } finally {
       setSavingCancel(false);
     }
@@ -220,6 +231,7 @@ export default function ConfiguracionPage() {
       setTimeout(() => setGroupOk(false), 3000);
     } catch (err) {
       console.error(err);
+      setSaveError(err instanceof Error ? err.message : "No se pudo guardar. Reintentá.");
     } finally {
       setSavingGroup(false);
     }
@@ -257,6 +269,11 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      {saveError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          No se pudo guardar: {saveError}
+        </div>
+      )}
       {/* Horario */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Panel
@@ -305,11 +322,15 @@ export default function ConfiguracionPage() {
                   <Input type="number" min={0} value={scheduleForm.negativeMarginMinutes}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, negativeMarginMinutes: parseInt(e.target.value, 10) || 0 })} />
                 </Field>
+                <Field label="Cooldown prueba gratis (min)" hint="Espera entre pruebas con código 8888 por simulador. 0 = desactivado (sin límite).">
+                  <Input type="number" min={0} max={240} value={scheduleForm.trialCooldownMin}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, trialCooldownMin: parseInt(e.target.value, 10) || 0 })} />
+                </Field>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={savingSchedule} className={RED_BTN}>
+              <Button type="submit" disabled={savingSchedule || inverted} className={RED_BTN}>
                 {savingSchedule ? "Guardando…" : "Guardar horarios"}
               </Button>
               <SavedTag show={scheduleOk} />

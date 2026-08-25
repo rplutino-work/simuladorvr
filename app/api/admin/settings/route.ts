@@ -18,6 +18,8 @@ const updateSettingsSchema = z.object({
   emailFrom: z.string().max(200).nullable().optional(),
   cancelMode: z.enum(["MANUAL", "AUTOMATIC"]).optional(),
   contactPhone: z.string().max(20).nullable().optional(),
+  // Cooldown de la prueba gratis (código 8888), en minutos. 0 = desactivado.
+  trialCooldownMin: z.number().int().min(0).max(240).optional(),
   // Group discount
   groupDiscountEnabled: z.boolean().optional(),
   groupDiscountTiers: z.record(z.string(), z.number().min(0).max(100)).nullable().optional(),
@@ -45,7 +47,12 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.role || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
   const parsed = updateSettingsSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -96,6 +103,6 @@ export async function PATCH(req: NextRequest) {
     where: { id: settings.id },
     data: updateData,
   });
-  updateTag("settings"); // refresh the cached reader used by the kiosks
+  updateTag("settings"); // invalidar YA el cached reader que usan los kioscos
   return NextResponse.json(updated);
 }

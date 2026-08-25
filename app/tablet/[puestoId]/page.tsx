@@ -50,7 +50,7 @@ type DirectOption = {
 
 const EXTEND_OPTIONS = [30, 60, 120] as const;
 const WARNING_MS = 5 * 60 * 1000;   // 5 minutes
-const POLL_INTERVAL_MS = 4000;
+const POLL_INTERVAL_MS = 8000; // 8s (antes 4s) — tiempo corre local, esto sólo re-sincroniza
 const SCREENSAVER_RETURN_MS = 8000; // after session ends
 const DIRECT_QR_TIMEOUT_MS = 60 * 1000; // 1 min window to pay
 
@@ -188,6 +188,11 @@ export default function TabletPage() {
   // without being re-created on every transition.
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Mirror of `session` for the poll closure (deps are [state,puestoId], so the
+  // captured `session` goes stale after an extension → the endTime comparison
+  // stayed true and re-created the countdown every poll). Read the ref instead.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
   // Auto-reload on new deploys, but never while the tablet is doing something
   // that a reload would interrupt — a payment, a QR on screen, or a live
@@ -219,7 +224,9 @@ export default function TabletPage() {
       }).catch(() => {});
     };
     ping();
-    const id = setInterval(ping, 15000);
+    // 60s (antes 15s): el heartbeat NATIVO ya reporta liveness; este web es sólo
+    // respaldo, no hace falta tan seguido → menos consumo.
+    const id = setInterval(ping, 60000);
     return () => clearInterval(id);
   }, [puestoId]);
 
@@ -259,7 +266,16 @@ export default function TabletPage() {
     // Also auto-finish if the customer is staring at the finish-confirmation
     // modal when their time runs out — otherwise the session would just hang.
     if (
-      (state === "active" || state === "warning" || state === "confirm_finish") &&
+      (state === "active" ||
+        state === "warning" ||
+        state === "confirm_finish" ||
+        // Si el tiempo base se acaba mientras el cliente está eligiendo/pagando
+        // una extensión, hay que finalizar igual — antes quedaba CONGELADO en la
+        // pantalla de extensión para siempre (el auto-reload tampoco lo rescata).
+        state === "extend_options" ||
+        state === "extend_qr" ||
+        state === "extend_confirm_cancel" ||
+        state === "extend_waiting") &&
       remainingMs === 0
     ) {
       handleAutoFinish();
@@ -283,10 +299,28 @@ export default function TabletPage() {
       try {
         const res = await fetch(`/api/tablet/${puestoId}/status`);
         const data = await res.json();
-        if (!data.session) return;
+        if (!data.session) {
+          // The server says this puesto has NO active session while the tablet
+          // is showing one — it was cancelled or finished from the admin panel.
+          // End the session on the tablet too (don't keep the local countdown
+          // running). Only from a live session; `extend_waiting` may briefly see
+          // no session and must not be killed here.
+          if (state === "active" || state === "warning") {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+            setState("finished");
+            if (screensaverRef.current) clearTimeout(screensaverRef.current);
+            screensaverRef.current = setTimeout(() => {
+              setSession(null);
+              setCodeInput("");
+              setState("screensaver");
+            }, SCREENSAVER_RETURN_MS);
+          }
+          return;
+        }
 
-        // Extension detected (endTime changed)
-        if (session && data.session.endTime !== session.endTime) {
+        // Extension detected (endTime changed) — compare against the LIVE session
+        // via the ref, not the stale closure, so this fires once per real change.
+        if (sessionRef.current && data.session.endTime !== sessionRef.current.endTime) {
           updateEndTime(data.session.endTime);
           if (state === "extend_waiting") {
             setState(data.session.remainingMs <= WARNING_MS ? "warning" : "active");
@@ -366,7 +400,7 @@ export default function TabletPage() {
         // network flap — keep trying
       }
     };
-    const id = setInterval(sync, 4000);
+    const id = setInterval(sync, 8000); // 8s (antes 4s)
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puestoId, startCountdown]);
@@ -424,6 +458,14 @@ export default function TabletPage() {
       }
       const isSandbox = process.env.NEXT_PUBLIC_MERCADOPAGO_SANDBOX === "true";
       const url = isSandbox ? (data.sandboxInitPoint ?? data.initPoint) : data.initPoint;
+      if (!url) {
+        // El backend respondió OK pero sin link de pago → no dejar la pantalla
+        // en blanco durante 60s: mostrar error y volver a las opciones.
+        setErrorTitle("ERROR DE PAGO");
+        setErrorMsg("No se pudo generar el pago. Probá de nuevo.");
+        setState("error");
+        return;
+      }
       setDirectUrl(url);
       setDirectBookingId(data.bookingId);
       setDirectSecondsLeft(DIRECT_QR_TIMEOUT_MS / 1000);
@@ -600,6 +642,7 @@ export default function TabletPage() {
       });
     } catch { /* ignore */ }
     setState("finished");
+    if (screensaverRef.current) clearTimeout(screensaverRef.current);
     screensaverRef.current = setTimeout(() => {
       setSession(null);
       setCodeInput("");
@@ -629,6 +672,7 @@ export default function TabletPage() {
       });
     } catch { /* ignore */ }
     setState("finished");
+    if (screensaverRef.current) clearTimeout(screensaverRef.current);
     screensaverRef.current = setTimeout(() => {
       setSession(null);
       setCodeInput("");
@@ -690,6 +734,7 @@ export default function TabletPage() {
 
   const progressPct = totalMs > 0 ? remainingMs / totalMs : 1;
   const isWarning = state === "warning";
+  const isCritical = isWarning && remainingMs <= 60 * 1000; // último minuto: máxima alarma
 
   return (
     <div
@@ -1235,14 +1280,27 @@ export default function TabletPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Warning overlay pulse */}
+            {/* Flash rojo a pantalla completa cuando queda poco — imposible de
+                ignorar. Está DENTRO de este bloque, así se desmonta junto con la
+                pantalla activa y nunca queda titilando en otra pantalla. Va detrás
+                del contenido (sin z), así tiñe todo sin tapar el reloj. */}
+            {isWarning && (
+              <motion.div
+                className="pointer-events-none absolute inset-0 bg-[#E60012]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: isCritical ? [0.05, 0.42, 0.05] : [0.04, 0.24, 0.04] }}
+                transition={{ duration: isCritical ? 0.5 : 0.9, repeat: Infinity, ease: "easeInOut" }}
+              />
+            )}
+
+            {/* Warning overlay pulse — borde grueso rojo con brillo, titila */}
             <AnimatePresence>
               {isWarning && (
                 <motion.div
                   key="warning-overlay"
-                  className="pointer-events-none absolute inset-0 border-4 border-[#E60012] rounded-none"
-                  animate={{ opacity: [0.6, 0, 0.6] }}
-                  transition={{ duration: 1, repeat: Infinity }}
+                  className="pointer-events-none absolute inset-0 border-[10px] border-[#E60012] shadow-[inset_0_0_60px_rgba(230,0,18,0.65)]"
+                  animate={{ opacity: [1, 0.15, 1] }}
+                  transition={{ duration: isCritical ? 0.5 : 1, repeat: Infinity }}
                 />
               )}
             </AnimatePresence>
@@ -1268,18 +1326,22 @@ export default function TabletPage() {
                 </div>
               )}
               {isWarning && (
-                <div className="flex items-center gap-2 rounded-xl border border-[#E60012]/50 bg-[#E60012]/20 px-4 py-2">
+                <motion.div
+                  className="flex items-center gap-3 rounded-xl border-2 border-[#E60012] bg-[#E60012]/25 px-5 py-3 shadow-[0_0_30px_rgba(230,0,18,0.6)]"
+                  animate={{ scale: isCritical ? [1, 1.06, 1] : [1, 1.03, 1] }}
+                  transition={{ duration: isCritical ? 0.5 : 1, repeat: Infinity }}
+                >
                   <motion.span
-                    animate={{ opacity: [1, 0, 1] }}
-                    transition={{ duration: 0.7, repeat: Infinity }}
-                    className="text-2xl"
+                    animate={{ opacity: [1, 0.1, 1] }}
+                    transition={{ duration: isCritical ? 0.4 : 0.7, repeat: Infinity }}
+                    className="text-3xl"
                   >
                     ⚠️
                   </motion.span>
-                  <span className="font-racing text-base tracking-widest text-[#E60012]">
-                    ¡ÚLTIMOS MINUTOS!
+                  <span className="font-racing text-xl sm:text-2xl tracking-widest text-[#E60012]">
+                    {isCritical ? "¡ÚLTIMO MINUTO!" : "¡ÚLTIMOS MINUTOS!"}
                   </span>
-                </div>
+                </motion.div>
               )}
             </div>
 
@@ -1290,11 +1352,17 @@ export default function TabletPage() {
                 <div className="text-center z-10">
                   <motion.p
                     className={`font-racing leading-none ${
-                      isWarning ? "text-[#E60012]" : "text-white"
+                      isWarning ? "text-[#E60012] drop-shadow-[0_0_25px_rgba(230,0,18,0.8)]" : "text-white"
                     }`}
                     style={{ fontSize: remainingMs >= 3600000 ? "3rem" : "4rem" }}
-                    animate={isWarning ? { scale: [1, 1.04, 1] } : {}}
-                    transition={isWarning ? { duration: 1, repeat: Infinity } : {}}
+                    animate={
+                      isCritical
+                        ? { scale: [1, 1.09, 1], color: ["#E60012", "#ffffff", "#E60012"] }
+                        : isWarning
+                        ? { scale: [1, 1.05, 1] }
+                        : {}
+                    }
+                    transition={isWarning ? { duration: isCritical ? 0.5 : 1, repeat: Infinity } : {}}
                   >
                     {fmtCountdown(remainingMs)}
                   </motion.p>

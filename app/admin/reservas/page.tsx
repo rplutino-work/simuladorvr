@@ -1,7 +1,7 @@
 "use client";
 // v2 — walk-in, confirm payment, session flow
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -124,15 +124,26 @@ function BookingDetail({
   const [confirmRefund, setConfirmRefund] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
 
+  const [notesError, setNotesError] = useState<string | null>(null);
   async function saveNotes() {
     setSaving(true);
-    await fetch(`/api/admin/bookings/${booking.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes }),
-    });
-    setSaving(false);
-    onRefresh();
+    setNotesError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${booking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "No se pudo guardar la nota");
+      }
+      onRefresh();
+    } catch (err) {
+      setNotesError(err instanceof Error ? err.message : "No se pudo guardar la nota");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRefund() {
@@ -361,6 +372,9 @@ function BookingDetail({
             <Button size="sm" onClick={saveNotes} disabled={saving}>
               {saving ? "Guardando..." : "Guardar notas"}
             </Button>
+            {notesError && (
+              <p className="mt-2 text-sm text-red-600">{notesError}</p>
+            )}
           </div>
         </div>
       </div>
@@ -378,7 +392,10 @@ function WalkInModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  // Fecha de HOY en horario de Argentina (UTC-3). Con `new Date().toISO...` se
+  // tomaba la fecha UTC, que después de las ~21:00 AR ya es mañana → el modal
+  // ponía mañana por defecto y bloqueaba cargar un turno de esta misma noche.
+  const today = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [form, setForm] = useState({
     puestoId: puestos[0]?.id ?? "",
     duration: 60 as 30 | 60 | 120,
@@ -391,6 +408,7 @@ function WalkInModal({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   const selectedPuesto = puestos.find((p) => p.id === form.puestoId);
   const priceKey = `price${form.duration}` as "price30" | "price60" | "price120";
@@ -398,6 +416,10 @@ function WalkInModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Guard síncrono anti doble-click: `disabled={loading}` depende de un
+    // re-render async, así que un doble clic rápido creaba dos reservas.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -422,6 +444,7 @@ function WalkInModal({
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   }
 
@@ -558,7 +581,10 @@ function GroupModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  // Fecha de HOY en horario de Argentina (UTC-3). Con `new Date().toISO...` se
+  // tomaba la fecha UTC, que después de las ~21:00 AR ya es mañana → el modal
+  // ponía mañana por defecto y bloqueaba cargar un turno de esta misma noche.
+  const today = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [settings, setSettings] = useState<{
     groupDiscountEnabled: boolean;
     groupDiscountTiers: Record<string, number> | null;
@@ -574,9 +600,22 @@ function GroupModal({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ groupId: string; groupCode: string; total: number; discountPct: number } | null>(null);
   const [starting, setStarting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
-    fetch("/api/admin/settings").then((r) => r.json()).then(setSettings).catch(() => {});
+    // Usamos el endpoint público de descuento (no /api/admin/settings, que es
+    // ADMIN-only y daba 403 al operador → mostraba precio sin descuento).
+    fetch("/api/group-discount")
+      .then((r) => r.json())
+      .then((d) =>
+        setSettings({
+          groupDiscountEnabled: d.enabled ?? false,
+          groupDiscountTiers: d.tiers ?? null,
+          groupDiscountFrom: d.from ?? null,
+          groupDiscountTo: d.to ?? null,
+        })
+      )
+      .catch(() => {});
   }, []);
 
   const priceKey = `price${duration}` as "price30" | "price60" | "price120";
@@ -605,6 +644,8 @@ function GroupModal({
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (selPuestos.length < 2) { setError("Elegí al menos 2 puestos"); return; }
+    if (submittingRef.current) return; // guard síncrono anti doble-click
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -621,21 +662,33 @@ function GroupModal({
       setError(err instanceof Error ? err.message : "Error");
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   }
 
   async function startNow() {
-    if (!done) return;
+    if (!done || submittingRef.current) return;
+    submittingRef.current = true;
     setStarting(true);
+    setError(null);
     try {
-      await fetch("/api/admin/bookings/group", {
+      const res = await fetch("/api/admin/bookings/group", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groupId: done.groupId, action: "start" }),
       });
+      if (!res.ok) {
+        // Antes se ignoraba la respuesta: si el inicio fallaba (p.ej. un puesto ya
+        // ocupado), el modal se cerraba como si hubiera arrancado. Ahora avisa.
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "No se pudo iniciar el grupo");
+      }
       onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo iniciar el grupo");
     } finally {
       setStarting(false);
+      submittingRef.current = false;
     }
   }
 
@@ -786,14 +839,32 @@ export default function ReservasPage() {
   }, [fetchBookings]);
 
   async function handleAction(id: string, status: string) {
+    // Iniciar una sesión individual NO se puede desde el panel (el backend lo
+    // rechaza a propósito): arranca con el código en la tablet. Avisamos en vez
+    // de fallar en silencio.
+    if (status === "ACTIVE") {
+      window.alert(
+        "Las sesiones individuales arrancan con el código en la tablet del simulador, no desde el panel."
+      );
+      return;
+    }
     setActionLoading(id + status);
-    await fetch(`/api/admin/bookings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    setActionLoading(null);
-    fetchBookings();
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        window.alert(data.error ?? "No se pudo completar la acción. Probá de nuevo.");
+      }
+    } catch {
+      window.alert("Error de conexión. Probá de nuevo.");
+    } finally {
+      setActionLoading(null);
+      fetchBookings();
+    }
   }
 
   function openDetail(b: Booking) {

@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: "Race Room TV",
   webDir: "public",
   server: {
-    url: "https://simuladorvr.vercel.app/tv/1",
+    url: "https://simuladorvr.vercel.app/tv",
     cleartext: false,
     androidScheme: "https",
   },

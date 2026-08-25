@@ -28,7 +28,10 @@ export async function POST(
 ) {
   try {
     const { puestoId } = await params;
-    const rl = await rateLimit(`direct:${clientIp(req)}:${puestoId}`, 15, 5 * 60 * 1000);
+    // Límite generoso: es un flujo de PAGO (un cliente que quiere pagar no debe
+    // quedar bloqueado). El problema real de los QR trabados se resuelve abajo
+    // cancelando el QR abandonado, no acá.
+    const rl = await rateLimit(`direct:${clientIp(req)}:${puestoId}`, 40, 5 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(
         { error: "Demasiados intentos. Esperá un momento." },
@@ -90,6 +93,22 @@ export async function POST(
     // Availability check + create under a per-puesto advisory lock so two
     // people can't buy the same puesto/slot at the same time.
     const booking = await withPuestoLock(puestoId, async (tx) => {
+      // Cancelar el QR ANTERIOR abandonado de este puesto. Un booking PENDING de
+      // compra directa (sin email, sin código, sin grupo = generado por un QR que
+      // el cliente no pagó) ocupa el slot y hace que el PRÓXIMO QR dé 409 → el
+      // cliente reintenta, se traba, y termina en "demasiados intentos". Al pedir
+      // un QR nuevo, el viejo ya no sirve: lo cancelamos y liberamos el puesto.
+      // (No toca reservas online: esas tienen customerEmail.)
+      await tx.booking.updateMany({
+        where: {
+          puestoId,
+          status: "PENDING",
+          code: null,
+          groupId: null,
+          customerEmail: null,
+        },
+        data: { status: "CANCELLED" },
+      });
       const available = await isSlotAvailable(puestoId, now, endTime, undefined, tx);
       if (!available) return null;
       return tx.booking.create({
@@ -104,8 +123,11 @@ export async function POST(
       });
     });
     if (!booking) {
+      // Si sigue sin estar disponible tras limpiar los QR viejos, es porque hay
+      // una sesión en curso o una reserva próxima real → mensaje claro (sin
+      // invitar a reintentar en loop).
       return NextResponse.json(
-        { error: "El puesto ya no está disponible. Volvé a intentar." },
+        { error: "El simulador está ocupado en este momento. Esperá a que se libere." },
         { status: 409 }
       );
     }
