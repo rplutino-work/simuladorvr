@@ -73,6 +73,43 @@ async function j(path: string, init?: RequestInit) {
   }
   ok("Limpieza QR de prueba enviada", true);
 
+  // 8) Validación de inputs de direct-purchase (no debe crear nada inválido)
+  const badTier = await j(`/api/tablet/${PUESTOS.sim4}/direct-purchase`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ tier:45, actualMinutes:30 }) });
+  ok("direct-purchase tier inválido = 400", badTier.status===400, `status=${badTier.status}`);
+  const badMin = await j(`/api/tablet/${PUESTOS.sim4}/direct-purchase`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ tier:30, actualMinutes:3 }) });
+  ok("direct-purchase minutos < 10 = 400", badMin.status===400, `status=${badMin.status}`);
+  const overMin = await j(`/api/tablet/${PUESTOS.sim4}/direct-purchase`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ tier:30, actualMinutes:45 }) });
+  ok("direct-purchase minutos > tier = 400", overMin.status===400, `status=${overMin.status}`);
+
+  // 9) Ciclo completo: comprar → cancelar → el puesto queda libre (sin fuga)
+  const life = await j(`/api/tablet/${PUESTOS.sim4}/direct-purchase`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ tier:30, actualMinutes:15 }) });
+  ok("ciclo: compra crea PENDING", life.status===200 && !!life.body?.bookingId, `status=${life.status}`);
+  if (life.body?.bookingId) {
+    const cancel = await j("/api/tablet/direct-cancel", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ bookingId: life.body.bookingId }) });
+    ok("ciclo: cancel responde ok", cancel.status===200, `status=${cancel.status}`);
+  } else {
+    ok("ciclo: cancel responde ok", false, "no hubo bookingId");
+  }
+
+  // 9b) Regresión del fix de direct-options: un QR directo abandonado (PENDING
+  //     sin código/grupo/email) NO debe bloquear el menú — el auto-cancel lo
+  //     limpia al pedir otro. (Distinto de una sesión ACTIVE, que sí bloquea.)
+  const aband = await j(`/api/tablet/${PUESTOS.sim4}/direct-purchase`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ tier:30, actualMinutes:15 }) });
+  const optsWithAband = await j(`/api/tablet/${PUESTOS.sim4}/direct-options`);
+  const stillBuyable = Array.isArray(optsWithAband.body?.options) && optsWithAband.body.options.some((o:any)=>o.available);
+  ok("QR abandonado NO bloquea el menú (regresión)", stillBuyable, stillBuyable ? "" : "el menú quedó todo ocupado");
+  if (aband.body?.bookingId) {
+    await j("/api/tablet/direct-cancel", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ bookingId: aband.body.bookingId }) });
+  }
+
+  // 10) Barrido final: ningún puesto quedó con sesión por los tests (anti-fuga)
+  let anySession = false;
+  for (const id of Object.values(PUESTOS)) {
+    const s = await j(`/api/tablet/${id}/status`);
+    if (s.body?.session) anySession = true;
+  }
+  ok("Sin sesiones colgadas tras los tests (sin fuga)", !anySession);
+
   console.log(`\n== RESULTADO: ${pass} OK / ${fail} FALLARON ==\n`);
   process.exit(fail ? 1 : 0);
 })();

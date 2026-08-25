@@ -72,6 +72,43 @@ export async function GET(
       });
     }
 
+    // ¿Hay una sesión EN CURSO ahora mismo? La búsqueda de `nextBooking` de más
+    // abajo sólo mira reservas FUTURAS (startTime >= now) y se pierde la sesión
+    // activa (startTime en el pasado, endTime en el futuro). Sin este chequeo, el
+    // menú ofrecía las duraciones como disponibles con el simulador ocupado → el
+    // cliente tocaba y `direct-purchase` devolvía 409 "ocupado" en loop.
+    // Espejamos exactamente lo que haría direct-purchase: cuenta ACTIVE/PAID y los
+    // PENDING "reales" (con código/grupo/email), pero NO los QR directos
+    // abandonados (PENDING sin nada), que el auto-cancel de direct-purchase limpia
+    // al pedir un QR nuevo — bloquearlos acá impediría comprar de nuevo.
+    const ongoing = await prisma.booking.findFirst({
+      where: {
+        puestoId,
+        startTime: { not: null, lte: now },
+        endTime: { not: null, gt: now },
+        OR: [
+          { status: { in: ["ACTIVE", "PAID"] } },
+          { status: "PENDING", NOT: { code: null, groupId: null, customerEmail: null } },
+        ],
+      },
+      select: { status: true },
+    });
+    if (ongoing) {
+      return NextResponse.json({
+        options: TIERS.map((t) => {
+          const fp = puesto[`price${t}` as "price30" | "price60" | "price120"] ?? 0;
+          return {
+            requested: t,
+            fullPriceCents: fp,
+            actualMinutes: 0,
+            priceCents: 0,
+            available: false,
+            reason: "Simulador en uso ahora",
+          };
+        }),
+      });
+    }
+
     // Closing time today (UTC, from AR local close hour)
     const today = new Date(now);
     today.setUTCHours(0, 0, 0, 0);
