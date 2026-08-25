@@ -339,7 +339,7 @@ public class MainActivity extends BridgeActivity {
     // prendida y NO hay turno pagado, trae la app al frente (sale del HDMI en ≤3s).
     // Cuando ya está en la app es no-op: REORDER_TO_FRONT a la instancia top y no
     // hay onNewIntent → no recarga el WebView ni parpadea.
-    private static final long ANTIFREE_INTERVAL_MS = 3000; // cada 3s
+    private static final long ANTIFREE_INTERVAL_MS = 2000; // cada 2s (más agresivo)
     // Fin del turno en curso, conocido LOCALMENTE (base elapsedRealtime). Lo setea
     // scheduleReturn() justo antes de ir a HDMI: es la señal autoritativa de "hay
     // una partida paga corriendo, NO tocar". 0 = no hay turno local.
@@ -351,9 +351,16 @@ public class MainActivity extends BridgeActivity {
     private final Handler antiFreeHandler = new Handler(Looper.getMainLooper());
     private volatile boolean antiFreeStarted = false;
 
-    /** ¿Hay una partida paga corriendo (según lo local o el último heartbeat)? */
+    /**
+     * ¿Hay una partida paga corriendo? Se decide SOLO con la señal LOCAL
+     * (sessionActiveUntilMs), que scheduleReturn() setea justo antes de ir a HDMI
+     * y cancelScheduledReturn() limpia al terminar. NO usamos el hasSession del
+     * heartbeat acá: queda "true" hasta 30s viejo y bloqueaba al watchdog tras
+     * terminar un turno (eran los ~10s de demora). Lo local se actualiza al
+     * instante, así el watchdog reacciona en ≤2s.
+     */
     private boolean sessionActiveNow() {
-        return SystemClock.elapsedRealtime() < sessionActiveUntilMs || heartbeatSession;
+        return SystemClock.elapsedRealtime() < sessionActiveUntilMs;
     }
 
     private void startAntiFreeWatchdog() {
