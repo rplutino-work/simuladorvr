@@ -96,8 +96,12 @@ async function j(path: string, init?: RequestInit) {
   //     limpia al pedir otro. (Distinto de una sesión ACTIVE, que sí bloquea.)
   const aband = await j(`/api/tablet/${PUESTOS.sim4}/direct-purchase`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ tier:30, actualMinutes:15 }) });
   const optsWithAband = await j(`/api/tablet/${PUESTOS.sim4}/direct-options`);
-  const stillBuyable = Array.isArray(optsWithAband.body?.options) && optsWithAband.body.options.some((o:any)=>o.available);
-  ok("QR abandonado NO bloquea el menú (regresión)", stillBuyable, stillBuyable ? "" : "el menú quedó todo ocupado");
+  // Independiente de la hora: un QR abandonado NO debe disparar el bloqueo "en
+  // uso" (en horario daría opciones disponibles; fuera de horario, "Fuera de
+  // horario" — pero nunca "Simulador en uso ahora").
+  const wronglyBlocked = Array.isArray(optsWithAband.body?.options) &&
+    optsWithAband.body.options.some((o:any)=>o.reason === "Simulador en uso ahora");
+  ok("QR abandonado NO dispara 'en uso' (regresión)", !wronglyBlocked, wronglyBlocked ? "el QR abandonado bloqueó el menú" : "");
   if (aband.body?.bookingId) {
     await j("/api/tablet/direct-cancel", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ bookingId: aband.body.bookingId }) });
   }
