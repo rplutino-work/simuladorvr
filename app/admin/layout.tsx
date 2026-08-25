@@ -29,9 +29,9 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "General",
     items: [
-      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/admin", label: "Dashboard", icon: LayoutDashboard, adminOnly: true },
       { href: "/admin/reservas", label: "Reservas", icon: Calendar },
-      { href: "/admin/metricas", label: "Métricas", icon: BarChart3 },
+      { href: "/admin/metricas", label: "Métricas", icon: BarChart3, adminOnly: true },
     ],
   },
   {

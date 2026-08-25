@@ -151,6 +151,18 @@ export async function middleware(req: NextRequest) {
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }
+    // Gating por ROL: la facturación (dashboard/métricas), la configuración y los
+    // precios de simuladores son SOLO para ADMIN. Un OPERATOR (que carga turnos)
+    // se manda a Reservas. Enforce server-side: no alcanza con ocultar el nav,
+    // porque tipeando la URL entraría igual.
+    const adminOnlyPath =
+      pathname === "/admin" ||
+      pathname.startsWith("/admin/metricas") ||
+      pathname.startsWith("/admin/configuracion") ||
+      pathname.startsWith("/admin/puestos");
+    if (adminOnlyPath && token.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/admin/reservas", req.nextUrl.origin));
+    }
   }
 
   return NextResponse.next();

@@ -2,6 +2,7 @@
 // v2 — walk-in, confirm payment, session flow
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -103,6 +104,21 @@ const STATUS_COLOR: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
+/**
+ * Hora actual de Argentina (UTC-3) como "HH:MM", redondeada a 15 min. Se usa como
+ * default de los modales de walk-in: el cliente está AHORA, así que el turno debe
+ * arrancar en la hora actual, no en un valor fijo viejo (antes 10:00 / 20:00, que
+ * mostraba "horarios viejos" y podía crear la reserva en el pasado).
+ */
+function nowARTime(): string {
+  const ar = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const mins = Math.min(
+    Math.round((ar.getUTCHours() * 60 + ar.getUTCMinutes()) / 15) * 15,
+    23 * 60 + 45
+  );
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
@@ -166,8 +182,12 @@ function BookingDetail({
   }
 
   // A refund makes sense only where money actually changed hands and the
-  // booking isn't already cancelled.
+  // booking isn't already cancelled. Reembolsar es SOLO ADMIN (el backend ya lo
+  // bloquea con 403; acá ocultamos el botón para que el operador no lo vea).
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const canRefund =
+    isAdmin &&
     booking.status !== "CANCELLED" &&
     (booking.payment !== null || booking.status === "PAID" ||
       booking.status === "ACTIVE" || booking.status === "FINISHED");
@@ -400,7 +420,7 @@ function WalkInModal({
     puestoId: puestos[0]?.id ?? "",
     duration: 60 as 30 | 60 | 120,
     date: today,
-    time: "10:00",
+    time: nowARTime(),
     customerName: "",
     customerEmail: "",
     notes: "",
@@ -594,7 +614,7 @@ function GroupModal({
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [duration, setDuration] = useState<30 | 60 | 120>(60);
   const [date, setDate] = useState(today);
-  const [time, setTime] = useState("20:00");
+  const [time, setTime] = useState(nowARTime());
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -827,7 +847,10 @@ export default function ReservasPage() {
   }, [statusFilter, debouncedSearch, page]);
 
   useEffect(() => {
-    fetch("/api/admin/puestos")
+    // Endpoint PÚBLICO (no ADMIN-only): así un OPERATOR también puede listar los
+    // simuladores y sus precios para cargar un walk-in. `/api/admin/puestos` daba
+    // 403 al operador. Devuelve solo los activos, que es lo que se puede reservar.
+    fetch("/api/puestos")
       .then((r) => r.json())
       .then(setPuestos)
       .catch(console.error);

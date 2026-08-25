@@ -11,6 +11,11 @@ export async function GET(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Facturación = SOLO ADMIN. Este endpoint devuelve ingresos del día/mes y la
+  // serie diaria de revenue; un OPERATOR no debe verlo.
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo un administrador" }, { status: 403 });
+  }
 
   // All day/month boundaries are computed in Argentina time (UTC-3), not the
   // server's UTC — otherwise "hoy" would reset at 21:00 local (peak hours).
