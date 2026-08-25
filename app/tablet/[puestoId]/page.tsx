@@ -13,7 +13,7 @@ type State =
   | "screensaver"
   | "choose_duration"    // direct-purchase: pick 30/60/120
   | "direct_loading"     // creating MP preference
-  | "direct_qr"          // show QR, 1-min countdown
+  | "direct_qr"          // show QR, 3-min countdown
   | "direct_confirm_cancel" // confirm before cancelling the pending payment
   | "direct_waiting"     // payment being confirmed
   | "input"
@@ -52,7 +52,7 @@ const EXTEND_OPTIONS = [30, 60, 120] as const;
 const WARNING_MS = 5 * 60 * 1000;   // 5 minutes
 const POLL_INTERVAL_MS = 8000; // 8s (antes 4s) — tiempo corre local, esto sólo re-sincroniza
 const SCREENSAVER_RETURN_MS = 8000; // after session ends
-const DIRECT_QR_TIMEOUT_MS = 60 * 1000; // 1 min window to pay
+const DIRECT_QR_TIMEOUT_MS = 180 * 1000; // 3 min — margen cómodo para escanear, abrir MercadoPago, loguearse y pagar (60s quedaba muy justo). El reloj de la sesión arranca al confirmarse el pago, no acá, así que un margen más largo no le quita minutos al cliente.
 
 // ─── Countdown formatting ───────────────────────────────────────────────────
 function fmtCountdown(ms: number) {
@@ -471,7 +471,7 @@ export default function TabletPage() {
       setDirectSecondsLeft(DIRECT_QR_TIMEOUT_MS / 1000);
       setState("direct_qr");
 
-      // 1-min countdown until auto-cancel
+      // 3-min countdown until auto-cancel
       directTimerRef.current = setInterval(() => {
         setDirectSecondsLeft((s) => {
           if (s <= 1) {
@@ -972,10 +972,10 @@ export default function TabletPage() {
                 </span>
                 <span
                   className={`font-racing text-3xl tracking-wider ${
-                    directSecondsLeft <= 15 ? "text-[#E60012]" : "text-white"
+                    directSecondsLeft <= 30 ? "text-[#E60012]" : "text-white"
                   }`}
                 >
-                  0:{String(directSecondsLeft).padStart(2, "0")}
+                  {Math.floor(directSecondsLeft / 60)}:{String(directSecondsLeft % 60).padStart(2, "0")}
                 </span>
                 <span className="font-condensed text-sm tracking-widest uppercase text-white/50">
                   para pagar

@@ -107,9 +107,21 @@ export async function POST(req: NextRequest) {
       if (paidCents > 0 && paidCents < directBooking.price) {
         return NextResponse.json({ ok: true, underpaid: true });
       }
-      // Paid over a cancelled/expired booking → orphan payment; the cron
-      // reconciler / admin handles the refund. Do not silently activate.
-      if (directBooking.status === "CANCELLED" || directBooking.status === "EXPIRED") {
+      // El pago cayó sobre un booking CANCELLED/EXPIRED. Suele ser: (a) el cliente
+      // pagó justo cuando venció el QR (el timeout lo canceló), o (b) pidió otro QR
+      // y el auto-cancel del anterior lo pisó. Si la cancelación es RECIENTE es un
+      // cliente que pagó y quiere jugar → lo RESCATAMOS activándolo bajo el mismo
+      // lock + re-chequeo de disponibilidad (si el puesto ya está ocupado no se
+      // activa: cae en "collision" y el pago queda registrado para reembolso). Un
+      // pago huérfano viejo (horas después) NO se activa solo → reembolso manual.
+      const RESCUE_WINDOW_MS = 20 * 60 * 1000;
+      const cancelledRecently =
+        (directBooking.status === "CANCELLED" || directBooking.status === "EXPIRED") &&
+        directBooking.createdAt.getTime() > Date.now() - RESCUE_WINDOW_MS;
+      if (
+        (directBooking.status === "CANCELLED" || directBooking.status === "EXPIRED") &&
+        !cancelledRecently
+      ) {
         return NextResponse.json({ ok: true, wasCancelled: true });
       }
 
@@ -127,7 +139,15 @@ export async function POST(req: NextRequest) {
           where: { id: bookingId },
           select: { status: true },
         });
-        if (!fresh || fresh.status !== "PENDING") return "already" as const;
+        // Activable si sigue PENDING, o si es un CANCELLED/EXPIRED reciente que
+        // estamos rescatando (cliente que pagó). Cualquier otro estado (ya ACTIVE,
+        // FINISHED o cancelado viejo) → idempotente, no tocar.
+        const activatable =
+          !!fresh &&
+          (fresh.status === "PENDING" ||
+            ((fresh.status === "CANCELLED" || fresh.status === "EXPIRED") &&
+              cancelledRecently));
+        if (!activatable) return "already" as const;
         const busy = await tx.booking.findFirst({
           where: { puestoId: directBooking.puestoId, status: "ACTIVE", id: { not: bookingId } },
           select: { id: true },
