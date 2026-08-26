@@ -430,6 +430,18 @@ function WalkInModal({
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
 
+  // Si los simuladores cargan DESPUÉS de montar el modal (p.ej. Neon dormido en
+  // horario muerto → /api/puestos tarda), el useState arrancó con puestoId="".
+  // El <select> igual muestra "Simulador 1" (default del navegador), pero
+  // selectedPuesto queda undefined → precio $0 y se enviaría un puesto vacío.
+  // Fijamos el primer simulador válido en cuanto la lista está disponible.
+  useEffect(() => {
+    if (puestos.length && !puestos.some((p) => p.id === form.puestoId)) {
+      setForm((f) => ({ ...f, puestoId: puestos[0].id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puestos]);
+
   const selectedPuesto = puestos.find((p) => p.id === form.puestoId);
   const priceKey = `price${form.duration}` as "price30" | "price60" | "price120";
   const price = selectedPuesto ? selectedPuesto[priceKey] / 100 : 0;
