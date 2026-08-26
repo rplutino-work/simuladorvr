@@ -344,7 +344,11 @@ public class MainActivity extends BridgeActivity {
     // scheduleReturn() justo antes de ir a HDMI: es la señal autoritativa de "hay
     // una partida paga corriendo, NO tocar". 0 = no hay turno local.
     private volatile long sessionActiveUntilMs = 0;
-    // Respaldo: lo último que dijo el server (hasActiveSession) en el heartbeat.
+    // Cuándo se seteó sessionActiveUntilMs (base elapsedRealtime). Sirve de gracia
+    // de arranque: recién iniciada la sesión el heartbeat todavía no confirmó, así
+    // que no dejamos que un latido rezagado ("no hay sesión") la limpie de una.
+    private volatile long localSetAtMs = 0;
+    // Último hasActiveSession que dijo el server en el heartbeat.
     private volatile boolean heartbeatSession = false;
     // Último shouldBeOn del server (fuera de horario / puesto inactivo → false).
     private volatile boolean lastShouldBeOn = true;
@@ -352,12 +356,12 @@ public class MainActivity extends BridgeActivity {
     private volatile boolean antiFreeStarted = false;
 
     /**
-     * ¿Hay una partida paga corriendo? Se decide SOLO con la señal LOCAL
-     * (sessionActiveUntilMs), que scheduleReturn() setea justo antes de ir a HDMI
-     * y cancelScheduledReturn() limpia al terminar. NO usamos el hasSession del
-     * heartbeat acá: queda "true" hasta 30s viejo y bloqueaba al watchdog tras
-     * terminar un turno (eran los ~10s de demora). Lo local se actualiza al
-     * instante, así el watchdog reacciona en ≤2s.
+     * ¿Hay una partida paga corriendo? Se decide con la señal LOCAL
+     * (sessionActiveUntilMs). Esa señal la mantiene fresca el heartbeat: la setea
+     * scheduleReturn() al ir a HDMI, la limpia cancelScheduledReturn() al terminar
+     * normal, Y la limpia el propio heartbeat si el server dice "no hay sesión"
+     * (fin anticipado desde la tablet/admin, que el WebView congelado en HDMI no
+     * puede avisar). Así el watchdog saca del HDMI en ≤2s del aviso.
      */
     private boolean sessionActiveNow() {
         return SystemClock.elapsedRealtime() < sessionActiveUntilMs;
@@ -523,8 +527,23 @@ public class MainActivity extends BridgeActivity {
             t.setDaemon(true);
             return t;
         });
-        heartbeatExec.scheduleWithFixedDelay(
-            this::sendHeartbeat, 0, HEARTBEAT_INTERVAL_SEC, TimeUnit.SECONDS);
+        scheduleNextBeat(0);
+    }
+
+    // Latido ADAPTATIVO: rápido (6s) mientras hay una sesión local activa —la TV
+    // está en HDMI y el WebView congelado no puede avisar de un fin anticipado—,
+    // y lento (30s) cuando está idle, para no consumir de más.
+    private static final long HEARTBEAT_IDLE_MS = 30000;
+    private static final long HEARTBEAT_SESSION_MS = 6000;
+
+    private void scheduleNextBeat(long delayMs) {
+        if (heartbeatExec == null || heartbeatExec.isShutdown()) return;
+        heartbeatExec.schedule(() -> {
+            sendHeartbeat();
+            long next = (SystemClock.elapsedRealtime() < sessionActiveUntilMs)
+                ? HEARTBEAT_SESSION_MS : HEARTBEAT_IDLE_MS;
+            scheduleNextBeat(next);
+        }, delayMs, TimeUnit.MILLISECONDS);
     }
 
     /** Fires a single heartbeat POST. Failures are swallowed — next tick retries. */
@@ -568,6 +587,13 @@ public class MainActivity extends BridgeActivity {
                 // Alimenta al watchdog rápido anti-fuga (respaldo del estado local).
                 heartbeatSession = hasSession;
                 lastShouldBeOn = shouldBeOn;
+                // FIN ANTICIPADO: si el server dice que NO hay sesión y ya pasó la
+                // gracia de arranque, limpiamos la señal local (que apuntaba al fin
+                // ORIGINAL). Cubre "finalizar desde la tablet/admin": el WebView está
+                // congelado en HDMI y no puede avisar → esto destraba la TV ya.
+                if (!hasSession && (SystemClock.elapsedRealtime() - localSetAtMs) > 12000) {
+                    sessionActiveUntilMs = 0;
+                }
 
                 if (hasSession) {
                     noSessionStreak = 0;            // hay turno → reset, jamás molestar
@@ -927,6 +953,7 @@ public class MainActivity extends BridgeActivity {
                 // Señal autoritativa para el watchdog anti-fuga: hay partida paga
                 // hasta este momento, así que NO sacar del HDMI hasta entonces.
                 sessionActiveUntilMs = triggerAt;
+                localSetAtMs = SystemClock.elapsedRealtime();
                 int piFlags = PendingIntent.FLAG_CANCEL_CURRENT
                     | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
 
