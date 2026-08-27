@@ -462,6 +462,11 @@ function WalkInModal({
   const priceKey = `price${form.duration}` as "price30" | "price60" | "price120";
   const price = selectedPuesto ? selectedPuesto[priceKey] / 100 : 0;
 
+  // ¿La fecha+hora elegida está en el pasado? (2 min de tolerancia). Reactivo, para
+  // avisar al instante y deshabilitar el botón — no solo al enviar.
+  const startMs = new Date(`${form.date}T${form.time}:00`).getTime();
+  const isPastStart = Number.isFinite(startMs) && startMs < Date.now() - 2 * 60 * 1000;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     // Guard síncrono anti doble-click: `disabled={loading}` depende de un
@@ -573,6 +578,9 @@ function WalkInModal({
             <div className="space-y-1.5">
               <Label>Hora inicio</Label>
               <Input type="time" step={900} value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} required />
+              {isPastStart && (
+                <p className="mt-1 text-xs font-medium text-amber-600">La hora no puede ser en el pasado.</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Nombre cliente (opcional)</Label>
@@ -615,7 +623,7 @@ function WalkInModal({
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={loading} className="flex-1">
+            <Button type="submit" disabled={loading || isPastStart} className="flex-1">
               {loading ? "Creando..." : "Crear reserva"}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
@@ -1074,95 +1082,86 @@ export default function ReservasPage() {
                       key={b.id}
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                      className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
                     >
-                      {/* Top row: code + status */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <div>
-                          {b.code ? (
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-lg font-bold tracking-widest text-slate-900">
-                                {b.code}
-                              </span>
-                              <button
-                                onClick={() => copyToClipboard(b.code!)}
-                                className="text-slate-400 hover:text-slate-700 transition"
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-sm font-medium text-slate-400">Sin código</span>
-                          )}
-                          <p className="text-sm font-medium text-slate-700 mt-0.5">
-                            {b.puesto.name}
+                      {/* Fila 1: simulador + código (izq) / badges (der) */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                            <span className="truncate">{b.puesto.name}</span>
                             {hasVR(b.puesto.name) && (
-                              <span className="ml-1.5 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">VR</span>
+                              <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold text-indigo-700">VR</span>
                             )}
                           </p>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-xs">
+                            {b.code ? (
+                              <>
+                                <span className="font-mono font-bold tracking-wide text-slate-600">{b.code}</span>
+                                <button onClick={() => copyToClipboard(b.code!)} className="text-slate-400 hover:text-slate-700">
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-slate-400">Sin código</span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
                             {STATUS_LABELS[b.status] ?? b.status}
                           </span>
-                          <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${typeBadge(b).cls}`}>
+                          <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${typeBadge(b).cls}`}>
                             {typeBadge(b).label}
                           </span>
                         </div>
                       </div>
 
-                      {/* Info grid */}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
-                        <div>
-                          <p className="text-slate-400">Inicio</p>
-                          <p className="font-medium text-slate-700">
-                            {b.startTime
-                              ? new Date(b.startTime).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Duración · Precio</p>
-                          <p className="font-medium text-slate-700">
-                            {b.duration}min · ${(b.price / 100).toLocaleString("es-AR")}
-                          </p>
-                        </div>
+                      {/* Fila 2: meta en una línea */}
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                        <span className="font-semibold text-slate-700">
+                          {b.duration}min · ${(b.price / 100).toLocaleString("es-AR")}
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span>
+                          {b.startTime
+                            ? new Date(b.startTime).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+                            : "—"}
+                        </span>
                         {(b.customerName || b.customerEmail) && (
-                          <div className="col-span-2">
-                            <p className="text-slate-400">Cliente</p>
-                            <p className="font-medium text-slate-700 truncate">
-                              {b.customerName ?? b.customerEmail}
-                            </p>
-                          </div>
-                        )}
-                        {b.notes && (
-                          <div className="col-span-2">
-                            <button
-                              onClick={() => setExpandedNotes(expandedNotes === b.id ? null : b.id)}
-                              className="flex items-center gap-1 text-amber-600 hover:text-amber-700"
-                            >
-                              <MessageSquare className="h-3 w-3" />
-                              <span>Ver nota</span>
-                              {expandedNotes === b.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                            </button>
-                            <AnimatePresence>
-                              {expandedNotes === b.id && (
-                                <motion.p
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: "auto", opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="mt-1 rounded-lg bg-amber-50 p-2 text-slate-600"
-                                >
-                                  {b.notes}
-                                </motion.p>
-                              )}
-                            </AnimatePresence>
-                          </div>
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="max-w-[9rem] truncate">{b.customerName ?? b.customerEmail}</span>
+                          </>
                         )}
                       </div>
 
+                      {b.notes && (
+                        <div className="mt-1.5">
+                          <button
+                            onClick={() => setExpandedNotes(expandedNotes === b.id ? null : b.id)}
+                            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            <span>Ver nota</span>
+                            {expandedNotes === b.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
+                          <AnimatePresence>
+                            {expandedNotes === b.id && (
+                              <motion.p
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="mt-1 rounded-lg bg-amber-50 p-2 text-xs text-slate-600"
+                              >
+                                {b.notes}
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
+
                       {/* Actions */}
-                      <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                      <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5">
                         <div className="flex flex-wrap gap-1">
                           {b.status === "PENDING" && (
                             <Button

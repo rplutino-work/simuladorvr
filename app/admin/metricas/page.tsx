@@ -62,7 +62,7 @@ export default function MetricasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Ingresos del mes" value={fmtMoney(m.revenueMonth)} sub="acumulado" accent delay={0} />
         <StatCard label="Ticket promedio" value={fmtMoney(avgTicket)} sub="por reserva (14d)" icon={Ticket} delay={0.05} />
         <StatCard label="Promedio diario" value={fmtMoney(avgPerDay)} sub="últimos 14 días" icon={TrendingUp} delay={0.1} />

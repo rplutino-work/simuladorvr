@@ -65,7 +65,7 @@ export function StatCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.35 }}
-      className={`relative overflow-hidden rounded-2xl border p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] ${
+      className={`relative overflow-hidden rounded-2xl border p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:p-5 ${
         accent
           ? "border-[#E60012]/20 bg-gradient-to-br from-[#E60012] to-[#c00010] text-white"
           : "border-slate-200/80 bg-white"
@@ -85,10 +85,10 @@ export function StatCard({
           </span>
         )}
       </div>
-      <p className={`mt-3 text-3xl font-bold tracking-tight tabular-nums ${accent ? "text-white" : "text-slate-900"}`}>
+      <p className={`mt-2 text-2xl font-bold tracking-tight tabular-nums sm:mt-3 sm:text-3xl ${accent ? "text-white" : "text-slate-900"}`}>
         {value}
       </p>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         {trend !== undefined && trend !== null && (
           <span
             className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-semibold ${
