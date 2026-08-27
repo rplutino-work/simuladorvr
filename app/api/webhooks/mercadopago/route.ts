@@ -84,6 +84,17 @@ export async function POST(req: NextRequest) {
       ? Math.round(mpPayment.transaction_amount * 100)
       : 0;
 
+    // Nombre de quien pagó por MercadoPago — para mostrarlo en Reservas, sobre
+    // todo en el QR de compra directa donde no hay nombre del cliente. MP no
+    // siempre manda nombre completo; si falta, cae al email.
+    const payer = (mpPayment as {
+      payer?: { first_name?: string | null; last_name?: string | null; email?: string | null };
+    }).payer;
+    const payerName =
+      [payer?.first_name, payer?.last_name].filter(Boolean).join(" ").trim() ||
+      payer?.email ||
+      null;
+
     const externalRef = mpPayment.external_reference ?? mpPayment.metadata?.booking_id;
     if (!externalRef) {
       return NextResponse.json({ error: "Missing booking reference" }, { status: 400 });
@@ -157,7 +168,14 @@ export async function POST(req: NextRequest) {
         if (!free) return "collision" as const;
         await tx.booking.update({
           where: { id: bookingId },
-          data: { status: "ACTIVE", startTime: now, endTime: newEnd, paymentId: mpPaymentId },
+          data: {
+            status: "ACTIVE",
+            startTime: now,
+            endTime: newEnd,
+            paymentId: mpPaymentId,
+            // Guardar quién pagó (el QR directo no tiene nombre de cliente).
+            ...(payerName && !directBooking.customerName ? { customerName: payerName } : {}),
+          },
         });
         await tx.payment.upsert({
           where: { bookingId },
