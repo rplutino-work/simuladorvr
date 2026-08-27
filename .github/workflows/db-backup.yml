@@ -1,0 +1,169 @@
+name: DB Backup + health check (Supabase)
+
+# La base vive en Supabase free tier, que NO tiene backups automaticos ni PITR
+# (`pitr_enabled: false`, `backups: []`). Neon nos daba 24h de point-in-time
+# restore; al migrar perdimos eso, asi que este workflow es la unica red bajo
+# los datos de reservas y pagos.
+#
+# Ademas del dump, vigila los dos limites que podrian romper el servicio:
+#   - tamano de la base   (free tier: 500 MB)
+#   - conexiones en uso   (max_connections: 60, ~33 las usa Supabase internamente)
+#
+# Secrets necesarios (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_DB_URL  — connection string, session mode puerto 5432
+#   RESEND_API_KEY   — para el mail de alerta
+#   ALERT_EMAIL      — destinatario de las alertas
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # 04:00 UTC = 01:00 ART, con el local ya cerrado
+  workflow_dispatch: {} # corrida manual desde la pestana Actions
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # Supabase corre PostgreSQL 17. pg_dump se niega a leer un servidor mas
+      # nuevo que el, y los runners traen el 16, asi que hay que traer el 17 de PGDG.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump schema simuladorvr
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          FILE="simuladorvr_${TIMESTAMP}.sql"
+          # Solo el schema simuladorvr: el schema `public` de este mismo proyecto
+          # es del health-dashboard y se respalda aparte.
+          pg_dump "$DATABASE_URL" \
+            --schema=simuladorvr \
+            --no-owner \
+            --no-privileges \
+            -f "$FILE"
+          echo "BACKUP_FILE=${FILE}.gz" >> $GITHUB_ENV
+          echo "RAW_FILE=$FILE" >> $GITHUB_ENV
+
+      # Un dump que "existe" no sirve de nada si salio vacio o truncado. Estas
+      # son las mismas cifras que verificamos a mano tras la migracion.
+      - name: Verify dump integrity
+        run: |
+          FILE="${{ env.RAW_FILE }}"
+          TABLES=$(grep -c '^CREATE TABLE' "$FILE" || true)
+          ENUMS=$(grep -c '^CREATE TYPE' "$FILE" || true)
+          FKS=$(grep -c 'FOREIGN KEY' "$FILE" || true)
+          ROWS=$(awk '/^COPY /{f=1;next} /^\\\.$/{f=0} f' "$FILE" | wc -l | tr -d ' ')
+          echo "tablas=$TABLES enums=$ENUMS fks=$FKS filas=$ROWS"
+
+          FAIL=""
+          [ "$TABLES" -eq 7 ]  || FAIL="$FAIL tablas($TABLES!=7)"
+          [ "$ENUMS"  -eq 3 ]  || FAIL="$FAIL enums($ENUMS!=3)"
+          [ "$FKS"    -eq 3 ]  || FAIL="$FAIL fks($FKS!=3)"
+          # Las reservas solo crecen; si el dump trae menos de 200 filas algo se rompio.
+          [ "$ROWS"   -ge 200 ] || FAIL="$FAIL filas($ROWS<200)"
+
+          if [ -n "$FAIL" ]; then
+            echo "::error::Dump incompleto:$FAIL"
+            echo "VERIFY_ERROR=$FAIL" >> $GITHUB_ENV
+            exit 1
+          fi
+          echo "BACKUP_STATS=tablas=$TABLES enums=$ENUMS fks=$FKS filas=$ROWS" >> $GITHUB_ENV
+          gzip "$FILE"
+
+      - name: Check Supabase limits
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          DB_MB=$(psql "$DATABASE_URL" -At -c \
+            "SELECT round(pg_database_size(current_database())/1048576.0);")
+          CONNS=$(psql "$DATABASE_URL" -At -c \
+            "SELECT count(*) FROM pg_stat_activity;")
+          MAXC=$(psql "$DATABASE_URL" -At -c \
+            "SELECT setting FROM pg_settings WHERE name='max_connections';")
+          echo "base=${DB_MB}MB/500MB conexiones=${CONNS}/${MAXC}"
+          echo "LIMITS=base=${DB_MB}MB/500MB conexiones=${CONNS}/${MAXC}" >> $GITHUB_ENV
+
+          WARN=""
+          # 400 MB = 80% del limite del free tier.
+          [ "$DB_MB" -lt 400 ] || WARN="$WARN base=${DB_MB}MB(>80%)"
+          # 45 = 75% de max_connections; por encima de eso las lambdas empiezan a fallar.
+          [ "$CONNS" -lt 45 ]  || WARN="$WARN conexiones=${CONNS}(>75%)"
+
+          if [ -n "$WARN" ]; then
+            echo "::warning::Cerca de los limites:$WARN"
+            echo "LIMIT_WARN=$WARN" >> $GITHUB_ENV
+          fi
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: simuladorvr-backup-${{ github.run_id }}
+          path: ${{ env.BACKUP_FILE }}
+          retention-days: 30
+
+      - name: Cleanup old backups
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const backups = artifacts.data.artifacts
+              .filter(a => a.name.startsWith('simuladorvr-backup-'))
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            for (const artifact of backups.slice(30)) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+              });
+            }
+
+      # Aviso solo cuando algo amerita mirar: nos acercamos a un limite.
+      - name: Warn if near limits
+        if: env.LIMIT_WARN != ''
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          curl -sS -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg to "$ALERT_EMAIL" --arg w "${{ env.LIMIT_WARN }}" --arg l "${{ env.LIMITS }}" '{
+              from: "Race Room <reservas@raceroom.com.ar>",
+              to: [$to],
+              subject: "⚠️ simuladorvr: Supabase cerca de sus limites",
+              html: ("<p>El backup salio bien, pero la base se acerca a un limite del free tier.</p><p><b>Alerta:</b> " + $w + "</p><p><b>Estado:</b> " + $l + "</p><p>Si la base pasa 500 MB o se agotan las conexiones, el servicio se corta. Toca purgar datos viejos o pasar a Pro.</p>")
+            }')"
+
+      # Si el backup falla, es lo unico que separa a las reservas de no tener respaldo.
+      - name: Alert on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          curl -sS -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg to "$ALERT_EMAIL" \
+                        --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+                        --arg err "${{ env.VERIFY_ERROR }}" '{
+              from: "Race Room <reservas@raceroom.com.ar>",
+              to: [$to],
+              subject: "🔴 simuladorvr: FALLO el backup de la base",
+              html: ("<p>El backup diario de simuladorvr (Supabase) fallo. Supabase free no tiene backups propios, asi que hoy las reservas quedaron sin respaldo.</p><p><b>Detalle:</b> " + (if $err == "" then "ver el log" else $err end) + "</p><p><a href=\"" + $url + "\">Ver la corrida</a></p>")
+            }')"
