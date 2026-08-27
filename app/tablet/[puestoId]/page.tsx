@@ -180,6 +180,22 @@ export default function TabletPage() {
   // Guards handleActivate against a double fire (auto-submit effect + manual
   // button, or a fast double tap) which would POST the same code twice.
   const activatingRef = useRef(false);
+  // Escape de STAFF para destrabar la tablet: 5 toques rápidos en la esquina
+  // superior-izquierda → recarga la página (vuelve al inicio limpio + trae la
+  // última versión). Sirve para sacar un "VALIDANDO..." colgado o cualquier
+  // estado pegado. Discreto: un cliente no lo dispara sin querer.
+  const resetTapRef = useRef({ count: 0, last: 0 });
+  function handleStaffResetTap() {
+    const now = Date.now();
+    const r = resetTapRef.current;
+    if (now - r.last > 2000) r.count = 0;
+    r.count += 1;
+    r.last = now;
+    if (r.count >= 5) {
+      r.count = 0;
+      window.location.reload();
+    }
+  }
   const [puestoName, setPuestoName] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
@@ -771,6 +787,16 @@ export default function TabletPage() {
       } transition-colors duration-1000`}
       style={{ WebkitUserSelect: "none" }}
     >
+      {/* Escape de staff: 5 toques rápidos en la esquina sup-izq → recarga la
+          tablet (destraba cualquier estado, incluido un "VALIDANDO..." colgado).
+          Invisible y por encima de todo, funciona desde cualquier pantalla. */}
+      <div
+        onClick={handleStaffResetTap}
+        aria-hidden
+        className="fixed left-0 top-0 z-[100] h-16 w-16"
+        style={{ WebkitTapHighlightColor: "transparent" }}
+      />
+
       <AnimatePresence mode="wait">
 
         {/* ── SCREENSAVER ─────────────────────────────────────────────── */}
