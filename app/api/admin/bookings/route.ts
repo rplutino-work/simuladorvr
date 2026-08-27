@@ -69,12 +69,23 @@ export async function GET(req: NextRequest) {
   const notContains = (s: string): Prisma.BookingWhereInput => ({
     OR: [{ notes: null }, { notes: { not: { contains: s } } }],
   });
+  // QR ABANDONADO: compra directa (sin código/email/grupo) que quedó
+  // cancelada/expirada SIN pago → el cliente generó el QR y no pagó. No es una
+  // cancelación real; se oculta del default y se ve con type=qr.
+  const ABANDONED_QR: Prisma.BookingWhereInput = {
+    code: null,
+    customerEmail: null,
+    groupId: null,
+    status: { in: ["CANCELLED", "EXPIRED"] },
+    payment: { is: null },
+  };
   if (type === "trial") and.push({ OR: TRIAL_OR });
   else if (type === "walkin") and.push(WALKIN);
+  else if (type === "qr") and.push(ABANDONED_QR);
   else if (type === "mp")
-    and.push(notContains("Prueba"), notContains("Uso libre"), notContains("Walk-in"));
+    and.push(notContains("Prueba"), notContains("Uso libre"), notContains("Walk-in"), { NOT: ABANDONED_QR });
   else if (type === "real")
-    and.push(notContains("Prueba"), notContains("Uso libre")); // default: sin pruebas
+    and.push(notContains("Prueba"), notContains("Uso libre"), { NOT: ABANDONED_QR }); // default: sin pruebas ni QR sin pagar
   // type === "all" → sin filtro de tipo
   if (and.length) base.AND = and;
 

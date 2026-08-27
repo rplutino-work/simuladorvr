@@ -120,14 +120,34 @@ function nowARTime(): string {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
-/** Badge de tipo de reserva a partir de la nota / pago. */
-function typeBadge(b: { notes: string | null }): { label: string; cls: string } {
+/** ¿Es un QR de compra directa ABANDONADO? (generado y nunca pagado → quedó
+ *  cancelado/expirado sin pago). No es una cancelación real. */
+function isAbandonedQR(b: Booking): boolean {
+  return (
+    !b.code && !b.customerEmail && !b.payment &&
+    (b.status === "CANCELLED" || b.status === "EXPIRED")
+  );
+}
+
+/** Badge de tipo de reserva. Devuelve null para un QR sin pagar (el estado ya lo
+ *  indica, así no se ve como "MercadoPago"). */
+function typeBadge(b: Booking): { label: string; cls: string } | null {
+  if (isAbandonedQR(b)) return null;
   const n = b.notes ?? "";
   if (n.includes("Prueba") || n.includes("Uso libre"))
     return { label: "Prueba", cls: "bg-amber-100 text-amber-700" };
   if (n.includes("Walk-in"))
     return { label: "Efectivo", cls: "bg-sky-100 text-sky-700" };
   return { label: "MercadoPago", cls: "bg-emerald-100 text-emerald-700" };
+}
+
+/** Badge de estado. Para un QR abandonado dice "QR sin pagar" (no "Cancelado"). */
+function statusBadge(b: Booking): { label: string; cls: string } {
+  if (isAbandonedQR(b)) return { label: "QR sin pagar", cls: "bg-slate-100 text-slate-500" };
+  return {
+    label: STATUS_LABELS[b.status] ?? b.status,
+    cls: STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600",
+  };
 }
 
 function copyToClipboard(text: string) {
@@ -998,6 +1018,7 @@ export default function ReservasPage() {
               <SelectItem value="mp">Online (MercadoPago)</SelectItem>
               <SelectItem value="walkin">Walk-in (efectivo)</SelectItem>
               <SelectItem value="trial">Pruebas gratis</SelectItem>
+              <SelectItem value="qr">QR sin pagar</SelectItem>
               <SelectItem value="all">Todos</SelectItem>
             </SelectContent>
           </Select>
@@ -1107,12 +1128,14 @@ export default function ReservasPage() {
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
-                            {STATUS_LABELS[b.status] ?? b.status}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge(b).cls}`}>
+                            {statusBadge(b).label}
                           </span>
-                          <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${typeBadge(b).cls}`}>
-                            {typeBadge(b).label}
-                          </span>
+                          {typeBadge(b) && (
+                            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${typeBadge(b)!.cls}`}>
+                              {typeBadge(b)!.label}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -1319,9 +1342,13 @@ export default function ReservasPage() {
                           </TableCell>
                           {/* Tipo */}
                           <TableCell className="py-2">
-                            <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${typeBadge(b).cls}`}>
-                              {typeBadge(b).label}
-                            </span>
+                            {typeBadge(b) ? (
+                              <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${typeBadge(b)!.cls}`}>
+                                {typeBadge(b)!.label}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-300">—</span>
+                            )}
                           </TableCell>
                           {/* Inicio */}
                           <TableCell className="py-2 text-xs text-slate-600 whitespace-nowrap">
@@ -1337,8 +1364,8 @@ export default function ReservasPage() {
                           </TableCell>
                           {/* Estado */}
                           <TableCell className="py-2">
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
-                              {STATUS_LABELS[b.status] ?? b.status}
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(b).cls}`}>
+                              {statusBadge(b).label}
                             </span>
                           </TableCell>
                           {/* Acciones */}
