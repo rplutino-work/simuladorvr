@@ -46,6 +46,14 @@ export async function POST(req: NextRequest) {
     parsed.data;
 
   const startTime = new Date(startTimeStr);
+  // Rechazar una hora de inicio claramente en el pasado (30 min de tolerancia):
+  // un walk-in arranca ahora, no ayer a la mañana.
+  if (startTime.getTime() < Date.now() - 30 * 60 * 1000) {
+    return NextResponse.json(
+      { error: "La hora de inicio no puede ser en el pasado." },
+      { status: 400 }
+    );
+  }
   const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
 
   const puesto = await prisma.puesto.findUnique({

@@ -63,11 +63,18 @@ export async function GET(req: NextRequest) {
     if (to) createdAt.lte = new Date(to);
     base.createdAt = createdAt;
   }
-  // Filtro por TIPO de reserva:
+  // Filtro por TIPO de reserva. OJO: `notes` puede ser NULL (online/QR sin nota),
+  // y en SQL `NOT (notes LIKE ...)` sobre NULL da NULL → excluiría esas filas. Por
+  // eso "no contiene X" se expresa como (notes IS NULL) OR (notes NOT LIKE %X%).
+  const notContains = (s: string): Prisma.BookingWhereInput => ({
+    OR: [{ notes: null }, { notes: { not: { contains: s } } }],
+  });
   if (type === "trial") and.push({ OR: TRIAL_OR });
   else if (type === "walkin") and.push(WALKIN);
-  else if (type === "mp") and.push({ NOT: { OR: TRIAL_OR } }, { NOT: WALKIN });
-  else if (type === "real") and.push({ NOT: { OR: TRIAL_OR } }); // default: sin pruebas
+  else if (type === "mp")
+    and.push(notContains("Prueba"), notContains("Uso libre"), notContains("Walk-in"));
+  else if (type === "real")
+    and.push(notContains("Prueba"), notContains("Uso libre")); // default: sin pruebas
   // type === "all" → sin filtro de tipo
   if (and.length) base.AND = and;
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Activity, DollarSign, CalendarClock, Trophy, Tablet, Tv, Gift } from "lucide-react";
+import { hasVR } from "@/lib/puestos";
 import { Panel } from "@/components/admin/ui";
 import { StatCard } from "@/components/admin/ui";
 import { AreaChart, BarChart, Donut, HourlyBars } from "@/components/admin/charts";
@@ -93,13 +94,20 @@ function DeviceStatusSection() {
         .catch(() => {});
     };
     load();
-    const poll = setInterval(load, 15000); // 15s (antes 5s) — monitoreo
+    // Poll cada 30s y SOLO con la pestaña visible → no consume recursos cuando el
+    // admin no lo está mirando. Al volver a la pestaña, refresca al instante.
+    const poll = setInterval(() => { if (!document.hidden) load(); }, 30000);
+    const onVisible = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVisible);
     setNowMs(Date.now());
-    const clock = setInterval(() => setNowMs(Date.now()), 1000);
+    // Reloj cada 10s (suficiente para el umbral online/offline de 45s) — menos
+    // re-renders = sin el "parpadeo" que se notaba.
+    const clock = setInterval(() => setNowMs(Date.now()), 10000);
     return () => {
       cancelled = true;
       clearInterval(poll);
       clearInterval(clock);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -140,6 +148,9 @@ function DeviceStatusSection() {
             >
               <div className="mb-2.5 flex items-center gap-2">
                 <span className="truncate text-sm font-semibold text-slate-800">{row.puestoName}</span>
+                {hasVR(row.puestoName) && (
+                  <span className="shrink-0 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">VR</span>
+                )}
                 {row.hasActiveSession && (
                   <span className="ml-auto shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                     En sesión

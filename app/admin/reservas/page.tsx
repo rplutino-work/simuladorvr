@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
+import { hasVR } from "@/lib/puestos";
 import {
   Play,
   X,
@@ -247,7 +248,12 @@ function BookingDetail({
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-slate-500 text-xs">Simulador</p>
-              <p className="font-medium">{booking.puesto.name}</p>
+              <p className="font-medium">
+                {booking.puesto.name}
+                {hasVR(booking.puesto.name) && (
+                  <span className="ml-1.5 rounded bg-indigo-100 px-1.5 py-0.5 align-middle text-[10px] font-bold text-indigo-700">VR</span>
+                )}
+              </p>
             </div>
             <div>
               <p className="text-slate-500 text-xs">Estado</p>
@@ -465,6 +471,14 @@ function WalkInModal({
     setLoading(true);
     setError(null);
     try {
+      // No permitir una hora de inicio en el pasado (con 2 min de tolerancia).
+      const startMs = new Date(`${form.date}T${form.time}:00`).getTime();
+      if (Number.isFinite(startMs) && startMs < Date.now() - 2 * 60 * 1000) {
+        setError("La hora de inicio no puede ser en el pasado. Elegí la hora actual o una futura.");
+        setLoading(false);
+        submittingRef.current = false;
+        return;
+      }
       const startTime = new Date(`${form.date}T${form.time}:00`).toISOString();
       const res = await fetch("/api/admin/bookings/manual", {
         method: "POST",
@@ -521,7 +535,7 @@ function WalkInModal({
                 required
               >
                 {puestos.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>{p.name}{hasVR(p.name) ? " · VR" : ""}</option>
                 ))}
               </select>
             </div>
@@ -773,7 +787,7 @@ function GroupModal({
                   return (
                     <button type="button" key={p.id} onClick={() => toggle(p.id)}
                       className={`rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition ${on ? "border-[#E60012] bg-[#E60012]/[0.05] text-slate-900" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
-                      {on && <CheckCircle className="mr-1 inline h-3.5 w-3.5 text-[#E60012]" />}{p.name}
+                      {on && <CheckCircle className="mr-1 inline h-3.5 w-3.5 text-[#E60012]" />}{p.name}{hasVR(p.name) ? " · VR" : ""}
                     </button>
                   );
                 })}
@@ -1082,6 +1096,9 @@ export default function ReservasPage() {
                           )}
                           <p className="text-sm font-medium text-slate-700 mt-0.5">
                             {b.puesto.name}
+                            {hasVR(b.puesto.name) && (
+                              <span className="ml-1.5 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">VR</span>
+                            )}
                           </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -1251,8 +1268,13 @@ export default function ReservasPage() {
                             )}
                           </TableCell>
                           {/* Simulador */}
-                          <TableCell className="py-2 text-sm font-medium truncate max-w-[6rem]">
-                            {b.puesto.name}
+                          <TableCell className="py-2 text-sm font-medium max-w-[7rem]">
+                            <div className="flex items-center gap-1">
+                              <span className="truncate">{b.puesto.name}</span>
+                              {hasVR(b.puesto.name) && (
+                                <span className="shrink-0 rounded bg-indigo-100 px-1 text-[9px] font-bold text-indigo-700">VR</span>
+                              )}
+                            </div>
                           </TableCell>
                           {/* Cliente */}
                           <TableCell className="py-2">
