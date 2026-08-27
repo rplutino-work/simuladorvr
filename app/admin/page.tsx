@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, DollarSign, CalendarClock, Trophy, Tablet, Tv } from "lucide-react";
+import { Activity, DollarSign, CalendarClock, Trophy, Tablet, Tv, Gift } from "lucide-react";
 import { Panel } from "@/components/admin/ui";
 import { StatCard } from "@/components/admin/ui";
 import { AreaChart, BarChart, Donut, HourlyBars } from "@/components/admin/charts";
@@ -16,8 +16,11 @@ type Metrics = {
   usagePerPuesto: { name: string; count: number }[];
   bookingsByDuration: { duration: number; count: number }[];
   hourlyHeatmap: { hour: number; count: number }[];
-  dailySeries: { date: string; revenue: number; count: number }[];
+  dailySeries: { date: string; revenue: number; count: number; trials: number }[];
   statusBreakdown: { status: string; count: number }[];
+  trialsToday: number;
+  trialsMonth: number;
+  trialsByType: { label: string; count: number }[];
 };
 
 type DeviceRow = {
@@ -194,7 +197,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Reservas activas"
           value={metrics.activeBookingsCount}
@@ -226,6 +229,14 @@ export default function AdminDashboardPage() {
           spark={bookSpark}
           icon={CalendarClock}
           delay={0.15}
+        />
+        <StatCard
+          label="Pruebas hoy"
+          value={metrics.trialsToday ?? 0}
+          sub={`${metrics.trialsMonth ?? 0} en el mes`}
+          spark={(series ?? []).map((d) => d.trials ?? 0)}
+          icon={Gift}
+          delay={0.2}
         />
       </div>
 

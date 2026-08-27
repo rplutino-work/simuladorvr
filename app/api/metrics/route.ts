@@ -32,6 +32,13 @@ export async function GET(req: NextRequest) {
   // 14-day window for the trend chart (in AR time).
   const fourteenDaysAgoUTC = new Date(startOfTodayUTC.getTime() - 13 * 24 * 60 * 60 * 1000);
 
+  // Pruebas/uso gratis: sesiones activadas con códigos especiales (8888 prueba,
+  // RRRR staff, 9999 uso libre). No generan pago, así que no aparecen en ingresos
+  // — se identifican por la nota que les pone activate.
+  const TRIAL_FILTER = {
+    OR: [{ notes: { contains: "Prueba" } }, { notes: { contains: "Uso libre" } }],
+  };
+
   const [
     activeBookingsCount,
     revenueToday,
@@ -41,6 +48,9 @@ export async function GET(req: NextRequest) {
     hourlyData,
     recentPayments,
     statusGroups,
+    trialsToday,
+    trialsMonth,
+    trialsRecent,
   ] = await Promise.all([
     prisma.booking.count({ where: { status: "ACTIVE" } }),
     prisma.payment.aggregate({
@@ -81,6 +91,13 @@ export async function GET(req: NextRequest) {
     }),
     // Booking status distribution (all-time) for the donut.
     prisma.booking.groupBy({ by: ["status"], _count: { id: true } }),
+    // Pruebas hoy / mes / últimos 14 días (por startTime = momento de activación).
+    prisma.booking.count({ where: { ...TRIAL_FILTER, startTime: { gte: startOfTodayUTC } } }),
+    prisma.booking.count({ where: { ...TRIAL_FILTER, startTime: { gte: startOfMonthUTC } } }),
+    prisma.booking.findMany({
+      where: { ...TRIAL_FILTER, startTime: { gte: fourteenDaysAgoUTC } },
+      select: { startTime: true, notes: true },
+    }),
   ]);
 
   const puestoNames = await prisma.puesto.findMany({
@@ -112,10 +129,10 @@ export async function GET(req: NextRequest) {
     const ar = new Date(d.getTime() - AR_OFFSET);
     return `${ar.getUTCFullYear()}-${String(ar.getUTCMonth() + 1).padStart(2, "0")}-${String(ar.getUTCDate()).padStart(2, "0")}`;
   };
-  const dailyMap = new Map<string, { revenue: number; count: number }>();
+  const dailyMap = new Map<string, { revenue: number; count: number; trials: number }>();
   for (let i = 13; i >= 0; i--) {
     const d = new Date(startOfTodayUTC.getTime() - i * 24 * 60 * 60 * 1000);
-    dailyMap.set(dayKey(d), { revenue: 0, count: 0 });
+    dailyMap.set(dayKey(d), { revenue: 0, count: 0, trials: 0 });
   }
   for (const p of recentPayments) {
     const k = dayKey(p.createdAt);
@@ -125,11 +142,34 @@ export async function GET(req: NextRequest) {
       slot.count += 1;
     }
   }
+  for (const t of trialsRecent) {
+    if (!t.startTime) continue;
+    const slot = dailyMap.get(dayKey(t.startTime));
+    if (slot) slot.trials += 1;
+  }
   const dailySeries = Array.from(dailyMap.entries()).map(([date, v]) => ({
     date,
     revenue: v.revenue,
     count: v.count,
+    trials: v.trials,
   }));
+
+  // Desglose de pruebas por tipo (últimos 14 días), según la nota del código.
+  const trialTypeOf = (notes: string | null) => {
+    const n = notes ?? "";
+    if (n.includes("staff")) return "Staff (RRRR)";
+    if (n.includes("Uso libre")) return "Uso libre (9999)";
+    if (n.includes("Prueba")) return "Prueba gratis (8888)";
+    return "Otra";
+  };
+  const trialTypeMap = new Map<string, number>();
+  for (const t of trialsRecent) {
+    const k = trialTypeOf(t.notes);
+    trialTypeMap.set(k, (trialTypeMap.get(k) ?? 0) + 1);
+  }
+  const trialsByType = Array.from(trialTypeMap.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
 
   const statusBreakdown = statusGroups.map((g) => ({
     status: g.status,
@@ -149,5 +189,8 @@ export async function GET(req: NextRequest) {
     hourlyHeatmap,
     dailySeries,
     statusBreakdown,
+    trialsToday,
+    trialsMonth,
+    trialsByType,
   });
 }

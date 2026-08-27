@@ -12,7 +12,10 @@ type Metrics = {
   usagePerPuesto: { name: string; count: number }[];
   bookingsByDuration: { duration: number; count: number }[];
   hourlyHeatmap: { hour: number; count: number }[];
-  dailySeries: { date: string; revenue: number; count: number }[];
+  dailySeries: { date: string; revenue: number; count: number; trials: number }[];
+  trialsToday: number;
+  trialsMonth: number;
+  trialsByType: { label: string; count: number }[];
 };
 
 function fmtMoney(n: number) {
@@ -93,6 +96,26 @@ export default function MetricasPage() {
         </Panel>
         <Panel title="Uso por simulador" description="Reservas totales">
           <BarChart data={usage} />
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel
+          title="Pruebas gratis — últimos 14 días"
+          description={`${m.trialsMonth ?? 0} en el mes · ${m.trialsToday ?? 0} hoy (códigos 8888 / RRRR / 9999)`}
+        >
+          {series.length ? (
+            <AreaChart data={series.map((d) => ({ label: dayLabel(d.date), value: d.trials ?? 0 }))} height={200} />
+          ) : (
+            <p className="text-sm text-slate-400">Sin datos</p>
+          )}
+        </Panel>
+        <Panel title="Pruebas por tipo de código" description="Últimos 14 días">
+          {(m.trialsByType ?? []).length ? (
+            <BarChart data={(m.trialsByType ?? []).map((t) => ({ label: t.label, value: t.count }))} />
+          ) : (
+            <p className="py-8 text-center text-sm text-slate-400">Sin pruebas en el período</p>
+          )}
         </Panel>
       </div>
 
