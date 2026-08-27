@@ -119,6 +119,16 @@ function nowARTime(): string {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
+/** Badge de tipo de reserva a partir de la nota / pago. */
+function typeBadge(b: { notes: string | null }): { label: string; cls: string } {
+  const n = b.notes ?? "";
+  if (n.includes("Prueba") || n.includes("Uso libre"))
+    return { label: "Prueba", cls: "bg-amber-100 text-amber-700" };
+  if (n.includes("Walk-in"))
+    return { label: "Efectivo", cls: "bg-sky-100 text-sky-700" };
+  return { label: "MercadoPago", cls: "bg-emerald-100 text-emerald-700" };
+}
+
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
@@ -818,6 +828,10 @@ export default function ReservasPage() {
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  // Al entrar mostramos SOLO turnos pagos reales (sin pruebas gratis).
+  const [typeFilter, setTypeFilter] = useState<string>("real");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
@@ -839,11 +853,14 @@ export default function ReservasPage() {
   // Any filter/search change resets to the first page.
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, debouncedSearch]);
+  }, [statusFilter, typeFilter, dateFrom, dateTo, debouncedSearch]);
 
   const fetchBookings = useCallback(() => {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
+    params.set("type", typeFilter);
+    if (dateFrom) params.set("from", new Date(`${dateFrom}T00:00:00-03:00`).toISOString());
+    if (dateTo) params.set("to", new Date(`${dateTo}T23:59:59-03:00`).toISOString());
     if (debouncedSearch) params.set("q", debouncedSearch);
     params.set("page", String(page));
     params.set("pageSize", String(PAGE_SIZE));
@@ -856,7 +873,7 @@ export default function ReservasPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [statusFilter, debouncedSearch, page]);
+  }, [statusFilter, typeFilter, dateFrom, dateTo, debouncedSearch, page]);
 
   useEffect(() => {
     // Endpoint PÚBLICO (no ADMIN-only): así un OPERATOR también puede listar los
@@ -948,6 +965,52 @@ export default function ReservasPage() {
         </div>
       </div>
 
+      {/* Filtros: tipo de reserva + rango de fechas */}
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">Tipo</label>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-full sm:w-52"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="real">Turnos pagos (reales)</SelectItem>
+              <SelectItem value="mp">Online (MercadoPago)</SelectItem>
+              <SelectItem value="walkin">Walk-in (efectivo)</SelectItem>
+              <SelectItem value="trial">Pruebas gratis</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">Desde</label>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full sm:w-40" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">Hasta</label>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full sm:w-40" />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+          {([["Hoy", 0], ["7 días", 6], ["30 días", 29]] as [string, number][]).map(([label, d]) => (
+            <button
+              key={label}
+              onClick={() => {
+                const arNow = Date.now() - 3 * 3600 * 1000;
+                setDateTo(new Date(arNow).toISOString().slice(0, 10));
+                setDateFrom(new Date(arNow - d * 86400000).toISOString().slice(0, 10));
+              }}
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Todo
+          </button>
+        </div>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {Object.entries(STATUS_LABELS).map(([status, label]) => {
@@ -1021,9 +1084,14 @@ export default function ReservasPage() {
                             {b.puesto.name}
                           </p>
                         </div>
-                        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
-                          {STATUS_LABELS[b.status] ?? b.status}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[b.status] ?? "bg-slate-100 text-slate-600"}`}>
+                            {STATUS_LABELS[b.status] ?? b.status}
+                          </span>
+                          <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${typeBadge(b).cls}`}>
+                            {typeBadge(b).label}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Info grid */}
@@ -1151,6 +1219,7 @@ export default function ReservasPage() {
                       <TableHead className="w-28">Código</TableHead>
                       <TableHead className="w-28">Simulador</TableHead>
                       <TableHead className="w-auto">Cliente</TableHead>
+                      <TableHead className="w-24">Tipo</TableHead>
                       <TableHead className="w-32 whitespace-nowrap">Inicio</TableHead>
                       <TableHead className="w-16">Dur. / $</TableHead>
                       <TableHead className="w-24">Estado</TableHead>
@@ -1226,6 +1295,12 @@ export default function ReservasPage() {
                                 )}
                               </AnimatePresence>
                             </div>
+                          </TableCell>
+                          {/* Tipo */}
+                          <TableCell className="py-2">
+                            <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${typeBadge(b).cls}`}>
+                              {typeBadge(b).label}
+                            </span>
                           </TableCell>
                           {/* Inicio */}
                           <TableCell className="py-2 text-xs text-slate-600 whitespace-nowrap">

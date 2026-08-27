@@ -26,15 +26,28 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const puestoId = searchParams.get("puestoId");
   const q = searchParams.get("q")?.trim();
+  // type: real (pagos, sin pruebas — DEFAULT) | trial | walkin | mp | all
+  const type = searchParams.get("type") || "real";
+  const from = searchParams.get("from"); // ISO datetime (inclusive)
+  const to = searchParams.get("to"); // ISO datetime (inclusive)
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(
     200,
     Math.max(1, parseInt(searchParams.get("pageSize") ?? "50", 10) || 50)
   );
 
-  // Base filter shared by the list and the summary counts (search + puesto,
-  // but not status — the cards need every status' total).
+  // Sesiones gratis (códigos 8888/RRRR/9999) — se identifican por la nota.
+  const TRIAL_OR: Prisma.BookingWhereInput[] = [
+    { notes: { contains: "Prueba" } },
+    { notes: { contains: "Uso libre" } },
+  ];
+  const WALKIN: Prisma.BookingWhereInput = { notes: { contains: "Walk-in" } };
+
+  // Base filter shared by la lista y los contadores (search + puesto + fecha +
+  // tipo, pero NO status — las tarjetas necesitan el total de cada estado dentro
+  // de la vista actual).
   const base: Prisma.BookingWhereInput = {};
+  const and: Prisma.BookingWhereInput[] = [];
   if (puestoId) base.puestoId = puestoId;
   if (q) {
     base.OR = [
@@ -44,6 +57,19 @@ export async function GET(req: NextRequest) {
       { id: { equals: q } },
     ];
   }
+  if (from || to) {
+    const createdAt: Prisma.DateTimeFilter = {};
+    if (from) createdAt.gte = new Date(from);
+    if (to) createdAt.lte = new Date(to);
+    base.createdAt = createdAt;
+  }
+  // Filtro por TIPO de reserva:
+  if (type === "trial") and.push({ OR: TRIAL_OR });
+  else if (type === "walkin") and.push(WALKIN);
+  else if (type === "mp") and.push({ NOT: { OR: TRIAL_OR } }, { NOT: WALKIN });
+  else if (type === "real") and.push({ NOT: { OR: TRIAL_OR } }); // default: sin pruebas
+  // type === "all" → sin filtro de tipo
+  if (and.length) base.AND = and;
 
   const listWhere: Prisma.BookingWhereInput = { ...base };
   if (status) listWhere.status = status as Prisma.BookingWhereInput["status"];
