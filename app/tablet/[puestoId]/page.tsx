@@ -52,6 +52,20 @@ const EXTEND_OPTIONS = [30, 60, 120] as const;
 const WARNING_MS = 5 * 60 * 1000;   // 5 minutes
 const POLL_INTERVAL_MS = 8000; // 8s (antes 4s) — tiempo corre local, esto sólo re-sincroniza
 const SCREENSAVER_RETURN_MS = 8000; // after session ends
+const VALIDATING_MAX_MS = 15000; // red de seguridad: nunca quedar en "VALIDANDO..."
+
+// fetch con timeout: si el WiFi se cuelga o el server no responde, la petición
+// aborta y cae en el catch (→ pantalla de error), en vez de quedar colgada para
+// siempre dejando la tablet trabada en "VALIDANDO...".
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 12000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
 const DIRECT_QR_TIMEOUT_MS = 180 * 1000; // 3 min — margen cómodo para escanear, abrir MercadoPago, loguearse y pagar (60s quedaba muy justo). El reloj de la sesión arranca al confirmarse el pago, no acá, así que un margen más largo no le quita minutos al cliente.
 
 // ─── Countdown formatting ───────────────────────────────────────────────────
@@ -198,6 +212,20 @@ export default function TabletPage() {
   // that a reload would interrupt — a payment, a QR on screen, or a live
   // session. Only the idle screensaver is a safe moment to reload.
   useAutoReload(() => state !== "screensaver");
+
+  // Red de seguridad anti-"VALIDANDO..." colgado: si por un hipo de WiFi/servidor
+  // una petición queda trabada (ni responde ni falla), a los 15s forzamos salida a
+  // error para que la tablet NUNCA quede pegada validando (le pasó al puesto 3).
+  useEffect(() => {
+    if (state !== "validating" && state !== "direct_loading") return;
+    const t = setTimeout(() => {
+      activatingRef.current = false;
+      setErrorTitle("SE DEMORÓ");
+      setErrorMsg("Tardó demasiado. Verificá el Wi-Fi y probá de nuevo.");
+      setState("error");
+    }, VALIDATING_MAX_MS);
+    return () => clearTimeout(t);
+  }, [state]);
 
   // ── Device heartbeat (liveness ping for admin) ──────────────────────────
   // Runs regardless of screen state — the tablet sits on the screensaver most
@@ -444,7 +472,7 @@ export default function TabletPage() {
     setDirectSelection(opt);
     setState("direct_loading");
     try {
-      const res = await fetch(`/api/tablet/${puestoId}/direct-purchase`, {
+      const res = await fetchWithTimeout(`/api/tablet/${puestoId}/direct-purchase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tier: opt.requested, actualMinutes: opt.actualMinutes }),
@@ -588,7 +616,7 @@ export default function TabletPage() {
     activatingRef.current = true;
     setState("validating");
     try {
-      const res = await fetch("/api/tablet/activate", {
+      const res = await fetchWithTimeout("/api/tablet/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: trimmed, puestoId }),
@@ -684,7 +712,7 @@ export default function TabletPage() {
     if (!session) return;
     setState("validating");
     try {
-      const res = await fetch("/api/tablet/extend", {
+      const res = await fetchWithTimeout("/api/tablet/extend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
