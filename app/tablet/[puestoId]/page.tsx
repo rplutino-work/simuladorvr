@@ -50,7 +50,15 @@ type DirectOption = {
 
 const EXTEND_OPTIONS = [30, 60, 120] as const;
 const WARNING_MS = 5 * 60 * 1000;   // 5 minutes
-const POLL_INTERVAL_MS = 8000; // 8s (antes 4s) — tiempo corre local, esto sólo re-sincroniza
+// El countdown corre LOCAL: este poll solo re-sincroniza contra el servidor, así
+// que bajar la frecuencia no afecta lo que ve el cliente en pantalla.
+//
+// A 8s cada tablet hacía ~450 requests por hora. Con 5 puestos ocupados son
+// ~87.000 requests diarios, y cada uno genera eventos de observabilidad en
+// Vercel: son US$23.74/mes de la factura, el 74% de todo lo que se paga por
+// encima del plan. A 20s el gasto cae ~60% y lo único que cambia es cuánto
+// tarda la tablet en enterarse de algo hecho desde el panel de admin.
+const POLL_INTERVAL_MS = 20000;
 const SCREENSAVER_RETURN_MS = 8000; // after session ends
 const VALIDATING_MAX_MS = 15000; // red de seguridad: nunca quedar en "VALIDANDO..."
 
@@ -270,7 +278,10 @@ export default function TabletPage() {
     ping();
     // 60s (antes 15s): el heartbeat NATIVO ya reporta liveness; este web es sólo
     // respaldo, no hace falta tan seguido → menos consumo.
-    const id = setInterval(ping, 60000);
+    // Cada 3 min en vez de cada minuto: el panel muestra "online/offline" con esa
+    // latencia, que para saber si una tablet está viva alcanza de sobra, y son
+    // dos tercios menos de requests facturables.
+    const id = setInterval(ping, 180000);
     return () => clearInterval(id);
   }, [puestoId]);
 
