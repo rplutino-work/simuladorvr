@@ -69,17 +69,26 @@ jobs:
           ROWS=$(awk '/^COPY /{f=1;next} /^\\\.$/{f=0} f' "$FILE" | wc -l | tr -d ' ')
           echo "tablas=$TABLES enums=$ENUMS fks=$FKS filas=$ROWS"
 
+          # Integridad ESTRUCTURAL = fatal: si faltan tablas/enums/FKs el dump esta
+          # corrupto y no tiene sentido guardarlo.
           FAIL=""
           [ "$TABLES" -eq 7 ]  || FAIL="$FAIL tablas($TABLES!=7)"
           [ "$ENUMS"  -eq 3 ]  || FAIL="$FAIL enums($ENUMS!=3)"
           [ "$FKS"    -eq 3 ]  || FAIL="$FAIL fks($FKS!=3)"
-          # Las reservas solo crecen; si el dump trae menos de 200 filas algo se rompio.
-          [ "$ROWS"   -ge 200 ] || FAIL="$FAIL filas($ROWS<200)"
 
           if [ -n "$FAIL" ]; then
-            echo "::error::Dump incompleto:$FAIL"
+            echo "::error::Dump estructuralmente incompleto:$FAIL"
             echo "VERIFY_ERROR=$FAIL" >> $GITHUB_ENV
             exit 1
+          fi
+
+          # El conteo de filas es SOLO una senal, nunca descarta el backup: un dump
+          # estructuralmente valido se guarda siempre, que es justo lo que queremos
+          # conservar. Antes exigia >=200 y tiraba el respaldo cuando la base bajo de
+          # 200 filas al purgar reservas viejas (ago-2026) -> falsa alarma y, peor,
+          # cero backup guardado. Ahora solo avisa si la base se achico mucho.
+          if [ "$ROWS" -lt 50 ]; then
+            echo "::warning::Backup con pocas filas ($ROWS<50) — la base parece haberse achicado."
           fi
           echo "BACKUP_STATS=tablas=$TABLES enums=$ENUMS fks=$FKS filas=$ROWS" >> $GITHUB_ENV
           gzip "$FILE"
