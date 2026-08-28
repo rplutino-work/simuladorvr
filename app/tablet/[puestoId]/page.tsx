@@ -50,7 +50,7 @@ type DirectOption = {
 
 const EXTEND_OPTIONS = [30, 60, 120] as const;
 const WARNING_MS = 5 * 60 * 1000;   // 5 minutes
-const POLL_INTERVAL_MS = 8000; // 8s (antes 4s) — tiempo corre local, esto sólo re-sincroniza
+const POLL_INTERVAL_MS = 20000; // 20s — el countdown corre LOCAL; esto sólo re-sincroniza cambios del admin (cancelar/extender). Bajado de 8s para reducir requests (observabilidad Vercel) sin afectar al cliente.
 const SCREENSAVER_RETURN_MS = 8000; // after session ends
 const VALIDATING_MAX_MS = 15000; // red de seguridad: nunca quedar en "VALIDANDO..."
 
@@ -270,7 +270,7 @@ export default function TabletPage() {
     ping();
     // 60s (antes 15s): el heartbeat NATIVO ya reporta liveness; este web es sólo
     // respaldo, no hace falta tan seguido → menos consumo.
-    const id = setInterval(ping, 60000);
+    const id = setInterval(ping, 180000); // 180s — el heartbeat NATIVO ya reporta liveness; este web es respaldo
     return () => clearInterval(id);
   }, [puestoId]);
 
@@ -444,7 +444,7 @@ export default function TabletPage() {
         // network flap — keep trying
       }
     };
-    const id = setInterval(sync, 8000); // 8s (antes 4s)
+    const id = setInterval(sync, 20000); // 20s — atrapa un pago tardío / inicio desde admin en pantalla idle. El QR en curso tiene su propio poll de 3s intacto.
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puestoId, startCountdown]);

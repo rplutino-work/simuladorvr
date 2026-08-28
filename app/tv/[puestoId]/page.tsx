@@ -15,7 +15,7 @@ type SessionData = {
 
 type TVState = "off" | "idle" | "redirecting" | "game" | "finished";
 
-const POLL_MS = 6000; // 6s (antes 3s) — detectar inicio/fin de turno
+const POLL_MS = 8000; // 8s — detectar inicio de turno para pasar a HDMI (≤8s, cubre el caminar-y-sentarse). El anti-fuga (salir del HDMI sin turno) es NATIVO y no depende de esto.
 const REDIRECT_DELAY_MS = 3000;
 
 function RacingLines() {
@@ -240,7 +240,7 @@ export default function TVPage() {
       }).catch(() => {});
     };
     ping();
-    const id = setInterval(ping, 60000); // 60s (antes 15s) — el nativo ya reporta
+    const id = setInterval(ping, 180000); // 180s — el heartbeat NATIVO ya reporta liveness; este web es respaldo
     return () => clearInterval(id);
   }, [resolvedId]);
 
