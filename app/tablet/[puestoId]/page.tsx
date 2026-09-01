@@ -196,6 +196,22 @@ export default function TabletPage() {
       window.location.reload();
     }
   }
+  // Botón de reset CONFIABLE (visible): mantenerlo apretado ~1,5s recarga la
+  // tablet. A diferencia del gesto de 5 toques (a ciegas, a veces no engancha),
+  // acá se ve dónde apretar; el hold evita que un cliente lo dispare de un toque.
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [holding, setHolding] = useState(false);
+  function startResetHold() {
+    setHolding(true);
+    holdTimerRef.current = setTimeout(() => window.location.reload(), 1500);
+  }
+  function cancelResetHold() {
+    setHolding(false);
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }
   const [puestoName, setPuestoName] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
@@ -796,6 +812,31 @@ export default function TabletPage() {
         className="fixed left-0 top-0 z-[100] h-16 w-16"
         style={{ WebkitTapHighlightColor: "transparent" }}
       />
+
+      {/* Botón de RESET de staff — visible, abajo al centro, discreto. Mantenerlo
+          apretado ~1,5s (el punto se llena de rojo) recarga la tablet: destraba un
+          "VALIDANDO..." colgado o cualquier estado pegado. El hold evita que un
+          cliente lo dispare con un toque. Más confiable que el gesto a ciegas. */}
+      <button
+        onPointerDown={startResetHold}
+        onPointerUp={cancelResetHold}
+        onPointerLeave={cancelResetHold}
+        onPointerCancel={cancelResetHold}
+        aria-label="Mantené apretado para reiniciar"
+        className="fixed bottom-2 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/35 active:text-white/70"
+        style={{ WebkitTapHighlightColor: "transparent", touchAction: "none" }}
+      >
+        <span className="relative block h-3 w-3 overflow-hidden rounded-full ring-1 ring-white/25">
+          <span
+            className="absolute inset-0 origin-left bg-[#E60012]"
+            style={{
+              transform: holding ? "scaleX(1)" : "scaleX(0)",
+              transition: `transform ${holding ? 1500 : 150}ms linear`,
+            }}
+          />
+        </span>
+        Mantené para reiniciar
+      </button>
 
       <AnimatePresence mode="wait">
 
