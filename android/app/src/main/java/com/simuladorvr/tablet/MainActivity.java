@@ -354,6 +354,10 @@ public class MainActivity extends BridgeActivity {
     // de arranque: recién iniciada la sesión el heartbeat todavía no confirmó, así
     // que no dejamos que un latido rezagado ("no hay sesión") la limpie de una.
     private volatile long localSetAtMs = 0;
+    // Fin (base elapsedRealtime) al que apunta la alarma de retorno ya armada. Sirve
+    // para NO reprogramar la alarma exacta en cada latido cuando el fin no cambió;
+    // sólo se re-arma si el fin se corrió (p.ej. una extensión).
+    private volatile long alarmArmedUntilMs = 0;
     // Último hasActiveSession que dijo el server en el heartbeat.
     private volatile boolean heartbeatSession = false;
     // Último shouldBeOn del server (fuera de horario / puesto inactivo → false).
@@ -611,26 +615,44 @@ public class MainActivity extends BridgeActivity {
                 // Alimenta al watchdog rápido anti-fuga (respaldo del estado local).
                 heartbeatSession = hasSession;
                 lastShouldBeOn = shouldBeOn;
-                // FIN ANTICIPADO: si el server dice que NO hay sesión y ya pasó la
-                // gracia de arranque, limpiamos la señal local (que apuntaba al fin
-                // ORIGINAL). Cubre "finalizar desde la tablet/admin": el WebView está
-                // congelado en HDMI y no puede avisar → esto destraba la TV ya.
-                if (!hasSession && (SystemClock.elapsedRealtime() - localSetAtMs) > 12000) {
-                    sessionActiveUntilMs = 0;
-                }
 
+                // Racha de latidos SIN sesión — se calcula ANTES de decidir nada, así
+                // el DEBOUNCE protege por igual al borrado y a la reafirmación: un
+                // latido malo AISLADO (racha = 1) nunca toca la sesión ni saca la TV.
                 if (hasSession) {
                     noSessionStreak = 0;            // hay turno → reset, jamás molestar
                 } else if (noSessionStreak < 1000) {
                     noSessionStreak++;
                 }
+                boolean confirmedNoSession = !hasSession && noSessionStreak >= 2;
+
+                if (hasSession) {
+                    // El server manda el tiempo restante REAL del turno. Re-sincronizamos
+                    // el timer nativo (y re-armamos la alarma de retorno si el fin se
+                    // corrió) en CADA latido. Con esto un turno legítimo NO se corta a
+                    // mitad: si una lectura mala aislada hubiera borrado el timer, el
+                    // próximo latido bueno lo restaura; y una EXTENSIÓN "sigue" al juego
+                    // aunque el WebView esté congelado en HDMI (no puede re-llamar
+                    // scheduleReturn desde ahí). Si el server es viejo y no manda el
+                    // campo, parseLongField devuelve -1 y no tocamos nada (degradación).
+                    long remaining = parseLongField(sb, "\"sessionRemainingMs\":");
+                    if (remaining > 0) {
+                        sessionActiveUntilMs = SystemClock.elapsedRealtime() + remaining;
+                        localSetAtMs = SystemClock.elapsedRealtime();
+                        if ("TV".equals(deviceType)) rearmReturnAlarmIfShifted(remaining);
+                    }
+                } else if (confirmedNoSession
+                        && (SystemClock.elapsedRealtime() - localSetAtMs) > 12000) {
+                    // FIN REAL: sólo soltamos con ≥2 latidos seguidos sin sesión (no con
+                    // uno) y pasada la gracia de arranque. Cubre "finalizar desde la
+                    // tablet/admin" — el WebView congelado en HDMI no puede avisar.
+                    sessionActiveUntilMs = 0;
+                }
 
                 // SOLO en la TV: si la pantalla DEBE estar prendida y NO hay turno
-                // pagado, la TV está en la consola (jugando gratis, o el admin
-                // canceló) → volver a la app. Con DEBOUNCE (≥2 latidos seguidos sin
-                // sesión) para no parpadear por un transitorio en medio de una
-                // carrera; y FALLBACK (≥4 latidos) por si la bandera se trabó.
-                boolean confirmedNoSession = !hasSession && noSessionStreak >= 2;
+                // pagado (confirmado por ≥2 latidos), la TV está en la consola
+                // (jugando gratis, o el admin canceló) → volver a la app. FALLBACK con
+                // ≥4 latidos por si la bandera de foreground se trabó.
                 boolean appNotOnTop = !activityForeground || noSessionStreak >= 4;
                 if ("TV".equals(deviceType) && shouldBeOn && confirmedNoSession && appNotOnTop
                         && !inSettingsGrace()) {
@@ -680,6 +702,63 @@ public class MainActivity extends BridgeActivity {
             PendingIntent pi = PendingIntent.getActivity(MainActivity.this, 1001, intent, piFlags);
             if (pi != null && am != null) am.cancel(pi);
         } catch (Exception e) { e.printStackTrace(); }
+        alarmArmedUntilMs = 0;
+    }
+
+    /**
+     * Programa (o reprograma) la alarma que trae la app al frente dentro de
+     * {@code delayMs}. Reemplaza la anterior (mismo requestCode 1001). Seguro desde
+     * cualquier hilo (lo llama tanto el puente JS como el hilo del heartbeat).
+     */
+    private void armReturnAlarm(long delayMs) {
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+            long triggerAt = SystemClock.elapsedRealtime() + delayMs;
+            int piFlags = PendingIntent.FLAG_CANCEL_CURRENT
+                | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+            Intent intent = new Intent(MainActivity.this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            PendingIntent pi = PendingIntent.getActivity(MainActivity.this, 1001, intent, piFlags);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+            } else {
+                am.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+            }
+            alarmArmedUntilMs = triggerAt;
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /**
+     * Re-arma la alarma SÓLO si el fin se corrió > 10s respecto de la ya armada
+     * (p.ej. una extensión). Evita reprogramar la alarma exacta en cada latido
+     * cuando el fin no cambió — el heartbeat pega cada ~6s.
+     */
+    private void rearmReturnAlarmIfShifted(long remaining) {
+        long newUntil = SystemClock.elapsedRealtime() + remaining;
+        if (Math.abs(newUntil - alarmArmedUntilMs) > 10_000) {
+            armReturnAlarm(remaining);
+        }
+    }
+
+    /** Extrae el entero que sigue a {@code key} en el JSON crudo del heartbeat.
+     *  Devuelve -1 si el campo no está (server viejo) o no parsea. */
+    private long parseLongField(StringBuilder sb, String key) {
+        try {
+            int i = sb.indexOf(key);
+            if (i < 0) return -1;
+            int j = i + key.length();
+            while (j < sb.length() && sb.charAt(j) == ' ') j++;
+            int k = j;
+            if (k < sb.length() && sb.charAt(k) == '-') k++;
+            while (k < sb.length() && Character.isDigit(sb.charAt(k))) k++;
+            if (k == j) return -1;
+            return Long.parseLong(sb.substring(j, k));
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     @Override
@@ -975,30 +1054,13 @@ public class MainActivity extends BridgeActivity {
          */
         @JavascriptInterface
         public void scheduleReturn(long delayMs) {
-            try {
-                AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-                long triggerAt = SystemClock.elapsedRealtime() + delayMs;
-                // Señal autoritativa para el watchdog anti-fuga: hay partida paga
-                // hasta este momento, así que NO sacar del HDMI hasta entonces.
-                sessionActiveUntilMs = triggerAt;
-                localSetAtMs = SystemClock.elapsedRealtime();
-                int piFlags = PendingIntent.FLAG_CANCEL_CURRENT
-                    | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
-
-                Intent intent = new Intent(MainActivity.this, MainActivity.class);
-                intent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK |
-                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                );
-                PendingIntent pi = PendingIntent.getActivity(MainActivity.this, 1001, intent, piFlags);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
-                } else {
-                    am.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
-                }
-            } catch (Exception e) { e.printStackTrace(); }
+            // Señal autoritativa para el watchdog anti-fuga: hay partida paga hasta
+            // este momento, así que NO sacar del HDMI hasta entonces. El heartbeat la
+            // re-sincroniza en cada latido con el tiempo restante real del server, así
+            // que aunque el WebView quede congelado en HDMI, el timer no queda viejo.
+            sessionActiveUntilMs = SystemClock.elapsedRealtime() + delayMs;
+            localSetAtMs = SystemClock.elapsedRealtime();
+            armReturnAlarm(delayMs);
         }
 
         /**

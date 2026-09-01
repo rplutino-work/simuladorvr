@@ -50,8 +50,24 @@ export async function POST(req: NextRequest) {
   // corta la TV cuando el admin cancela/finaliza una sesión.
   const active = await prisma.booking.findFirst({
     where: { puestoId, status: "ACTIVE" },
-    select: { id: true },
+    select: { id: true, startTime: true, endTime: true, duration: true },
+    orderBy: { startTime: "desc" },
   });
+  // Tiempo restante REAL del turno. La TV lo usa para re-sincronizar su timer
+  // nativo en CADA latido: así una lectura mala aislada no la saca a mitad de
+  // sesión (el próximo latido bueno la restaura) y una extensión "sigue" al juego
+  // aunque el WebView esté congelado en HDMI. Además exigimos endTime > ahora: el
+  // cron que pasa ACTIVE→FINISHED corre cada 10 min y puede demorar; sin este
+  // chequeo un turno vencido seguiría "activo" y la TV quedaría en el HDMI pasado
+  // el fin pago = fuga.
+  let sessionRemainingMs = 0;
+  if (active) {
+    const end =
+      active.endTime ??
+      new Date((active.startTime ?? new Date()).getTime() + active.duration * 60_000);
+    sessionRemainingMs = end.getTime() - Date.now();
+  }
+  const sessionActive = sessionRemainingMs > 0;
 
   // ¿La pantalla debería estar prendida? (dentro de horario + puesto activo).
   // La TV usa esto para NO reafirmarse cuando corresponde estar apagada (fuera
@@ -78,5 +94,10 @@ export async function POST(req: NextRequest) {
     shouldBeOn = true; // ante la duda, dejar la pantalla prendida
   }
 
-  return NextResponse.json({ ok: true, hasActiveSession: !!active, shouldBeOn });
+  return NextResponse.json({
+    ok: true,
+    hasActiveSession: sessionActive,
+    sessionRemainingMs: sessionActive ? sessionRemainingMs : 0,
+    shouldBeOn,
+  });
 }
