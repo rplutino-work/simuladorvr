@@ -70,12 +70,16 @@ function tryNativeBridge(method: string, ...args: unknown[]) {
 }
 
 export default function TVPage() {
-  useAutoReload();
   const params = useParams();
   const rawPuestoId = params?.puestoId as string;
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [state, setState] = useState<TVState>("idle");
   const [session, setSession] = useState<SessionData>(null);
+  // Recargar por deploy nuevo SÓLO cuando no hay turno: si hay sesión activa se
+  // posterga hasta que el turno termine → NUNCA refresca en plena partida. (La
+  // tablet ya tenía este guard; la TV se llamaba sin guard y por eso a veces
+  // hacía "un refresh de la nada" con alguien jugando al salir un deploy.)
+  useAutoReload(() => session !== null);
   const [puestoName, setPuestoName] = useState("");
   // Poll fast during business hours, slow (once a minute) when the screen is
   // off — so the DB isn't hit every 3s all night and Neon can auto-suspend.
