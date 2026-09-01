@@ -374,7 +374,7 @@ public class MainActivity extends BridgeActivity {
     // kiosco se re-bloquea solo. Se limpia apenas el operador vuelve a la app
     // (onResume). No hay riesgo de fuga durante la gracia: la TV muestra Ajustes,
     // no el HDMI de la consola, y el operador está presente frente al equipo.
-    private static final long SETTINGS_GRACE_MS = 3 * 60 * 1000; // 3 min
+    private static final long SETTINGS_GRACE_MS = 2 * 60 * 1000; // 2 min (vuelve el anti-fuga)
     private volatile long settingsGraceUntilMs = 0;
     private boolean inSettingsGrace() {
         return SystemClock.elapsedRealtime() < settingsGraceUntilMs;
