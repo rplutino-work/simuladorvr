@@ -339,7 +339,13 @@ public class MainActivity extends BridgeActivity {
     // prendida y NO hay turno pagado, trae la app al frente (sale del HDMI en ≤3s).
     // Cuando ya está en la app es no-op: REORDER_TO_FRONT a la instancia top y no
     // hay onNewIntent → no recarga el WebView ni parpadea.
-    private static final long ANTIFREE_INTERVAL_MS = 2000; // cada 2s (más agresivo)
+    // Cada 1s. Es un chequeo LOCAL (compara timestamps, NO hace red), así que
+    // bajarlo no cuesta consumo de Vercel: la fuga y el gasto son cosas separadas.
+    // 1s acota la ventana máxima de fuga a la mitad vs los 2s previos. Cuando ya
+    // está en la app es no-op (REORDER_TO_FRONT sin onNewIntent → no recarga ni
+    // parpadea), así que correrlo más seguido es barato. Ajustable: si en el local
+    // se ve que hace falta aún más agresivo (o menos), se toca solo este número.
+    private static final long ANTIFREE_INTERVAL_MS = 1000; // cada 1s (local, sin red)
     // Fin del turno en curso, conocido LOCALMENTE (base elapsedRealtime). Lo setea
     // scheduleReturn() justo antes de ir a HDMI: es la señal autoritativa de "hay
     // una partida paga corriendo, NO tocar". 0 = no hay turno local.
@@ -354,6 +360,21 @@ public class MainActivity extends BridgeActivity {
     private volatile boolean lastShouldBeOn = true;
     private final Handler antiFreeHandler = new Handler(Looper.getMainLooper());
     private volatile boolean antiFreeStarted = false;
+
+    // ── Gracia de Ajustes ────────────────────────────────────────────────────
+    // Cuando el operador entra a Ajustes con Atrás×5, TODOS los mecanismos que
+    // traen la app al frente (watchdog rápido, reafirmación por heartbeat y
+    // watchdog de arranque) deben PAUSARSE: si no, el menú se cierra solo en ≤2s
+    // y no se puede, p.ej., emparejar auriculares Bluetooth. Acotada a unos
+    // minutos: si se olvidan el menú abierto, el anti-fuga se reactiva y el
+    // kiosco se re-bloquea solo. Se limpia apenas el operador vuelve a la app
+    // (onResume). No hay riesgo de fuga durante la gracia: la TV muestra Ajustes,
+    // no el HDMI de la consola, y el operador está presente frente al equipo.
+    private static final long SETTINGS_GRACE_MS = 3 * 60 * 1000; // 3 min
+    private volatile long settingsGraceUntilMs = 0;
+    private boolean inSettingsGrace() {
+        return SystemClock.elapsedRealtime() < settingsGraceUntilMs;
+    }
 
     /**
      * ¿Hay una partida paga corriendo? Se decide con la señal LOCAL
@@ -376,7 +397,8 @@ public class MainActivity extends BridgeActivity {
     private final Runnable antiFreeRunnable = new Runnable() {
         @Override public void run() {
             try {
-                if ("TV".equals(heartbeatDeviceType) && lastShouldBeOn && !sessionActiveNow()) {
+                if ("TV".equals(heartbeatDeviceType) && lastShouldBeOn && !sessionActiveNow()
+                        && !inSettingsGrace()) {
                     bringAppToFront();
                 }
             } catch (Exception e) { e.printStackTrace(); }
@@ -402,6 +424,8 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         activityForeground = true;
+        // El operador volvió del menú de Ajustes → el anti-fuga se reactiva ya.
+        settingsGraceUntilMs = 0;
         setImmersive();
         startKioskLock();
     }
@@ -481,7 +505,7 @@ public class MainActivity extends BridgeActivity {
                 boolean owner = dpm != null && dpm.isDeviceOwnerApp(getPackageName());
                 locked = am != null
                     && am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
-                if (owner && !locked) {
+                if (owner && !locked && !inSettingsGrace()) {
                     Intent i = new Intent(MainActivity.this, MainActivity.class);
                     i.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -608,7 +632,8 @@ public class MainActivity extends BridgeActivity {
                 // carrera; y FALLBACK (≥4 latidos) por si la bandera se trabó.
                 boolean confirmedNoSession = !hasSession && noSessionStreak >= 2;
                 boolean appNotOnTop = !activityForeground || noSessionStreak >= 4;
-                if ("TV".equals(deviceType) && shouldBeOn && confirmedNoSession && appNotOnTop) {
+                if ("TV".equals(deviceType) && shouldBeOn && confirmedNoSession && appNotOnTop
+                        && !inSettingsGrace()) {
                     reassertAppNoSession();
                 }
             }
@@ -688,6 +713,9 @@ public class MainActivity extends BridgeActivity {
 
     /** Temporarily leaves the kiosk lock and opens Android Settings. */
     private void openSettings() {
+        // Pausa el anti-fuga mientras el operador usa Ajustes (WiFi, Bluetooth…),
+        // o el menú se cerraría solo en ≤2s. Se limpia al volver (onResume).
+        settingsGraceUntilMs = SystemClock.elapsedRealtime() + SETTINGS_GRACE_MS;
         runOnUiThread(() -> {
             try {
                 stopLockTask();
