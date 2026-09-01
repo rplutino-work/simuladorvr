@@ -75,11 +75,13 @@ export default function TVPage() {
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [state, setState] = useState<TVState>("idle");
   const [session, setSession] = useState<SessionData>(null);
-  // Recargar por deploy nuevo SÓLO cuando no hay turno: si hay sesión activa se
-  // posterga hasta que el turno termine → NUNCA refresca en plena partida. (La
-  // tablet ya tenía este guard; la TV se llamaba sin guard y por eso a veces
-  // hacía "un refresh de la nada" con alguien jugando al salir un deploy.)
-  useAutoReload(() => session !== null);
+  // Recargar por deploy nuevo SÓLO cuando la TV está apagada (fuera de horario).
+  // Los deploys son poco frecuentes, así que se aplican con el local cerrado y la
+  // TV NUNCA refresca durante la operación — ni en el home ni en pleno juego. (La
+  // TV se llamaba sin guard y por eso hacía "un refresh de la nada", en home y a
+  // veces en plena partida, cada vez que salía un deploy.) Un fix urgente se
+  // propaga recargando a mano.
+  useAutoReload(() => state !== "off");
   const [puestoName, setPuestoName] = useState("");
   // Poll fast during business hours, slow (once a minute) when the screen is
   // off — so the DB isn't hit every 3s all night and Neon can auto-suspend.
