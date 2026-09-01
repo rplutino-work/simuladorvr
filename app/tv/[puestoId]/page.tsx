@@ -81,6 +81,9 @@ export default function TVPage() {
   // off — so the DB isn't hit every 3s all night and Neon can auto-suspend.
   const [pollMs, setPollMs] = useState(POLL_MS);
   const prevSessionRef = useRef<string | null>(null);
+  // Cuándo se mandó por última vez al juego (Date.now). Sirve para detectar
+  // "atascados en la app con turno" y re-mandar (ver el poll).
+  const lastSwitchAtRef = useRef<number>(0);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const finishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenStateRef = useRef<boolean>(true);
@@ -137,8 +140,16 @@ export default function TVPage() {
       if (data.session) {
         setSession(data.session);
 
-        if (!prevSessionRef.current || prevSessionRef.current !== data.session.bookingId) {
+        // Mandar al juego si: (a) turno NUEVO, o (b) FORZAR si estamos atascados en
+        // la app con turno. El poll corre SÓLO con la WebView en primer plano (el HDMI
+        // la congela), así que si hay turno, no hay un switch en curso y hace >12s que
+        // no mandamos al juego → la app volvió al frente en pleno turno → re-mandar.
+        // (Antes sólo miraba el bookingId: si volvía al frente no re-mandaba y la TV
+        // quedaba en inicio con turno activo.) No suma consumo: es el mismo poll.
+        const stuckOnApp = !redirectTimerRef.current && Date.now() - lastSwitchAtRef.current > 12000;
+        if (!prevSessionRef.current || prevSessionRef.current !== data.session.bookingId || stuckOnApp) {
           prevSessionRef.current = data.session.bookingId;
+          lastSwitchAtRef.current = Date.now();
           // Una sesión nueva cancela cualquier timer pendiente de "finished→idle"
           // de la sesión anterior; si no, ese timer forzaba idle/setSession(null)
           // en medio de la sesión nueva.
