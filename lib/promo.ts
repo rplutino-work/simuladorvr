@@ -22,6 +22,13 @@ export function parsePromoInput(
   if (!CODE_RE.test(code))
     return { error: "El código debe tener 4 caracteres tipeables en la tablet: dígitos 2-9 y letras, sin 0, 1, I ni O." };
 
+  // Códigos especiales cableados en /api/tablet/activate (se chequean ANTES que
+  // los de la DB). Si el admin creara uno igual, quedaría "tapado" y no haría lo
+  // configurado — así que los reservamos.
+  const RESERVED = new Set(["8888", "9999", "RRRR"]);
+  if (RESERVED.has(code))
+    return { error: "Ese código está reservado por el sistema. Elegí otro." };
+
   const minutes = Number(body.minutes);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600)
     return { error: "Los minutos deben ser un entero entre 1 y 600." };
