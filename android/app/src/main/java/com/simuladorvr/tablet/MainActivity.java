@@ -627,19 +627,20 @@ public class MainActivity extends BridgeActivity {
                 boolean confirmedNoSession = !hasSession && noSessionStreak >= 2;
 
                 if (hasSession) {
-                    // El server manda el tiempo restante REAL del turno. Re-sincronizamos
-                    // el timer nativo (y re-armamos la alarma de retorno si el fin se
-                    // corrió) en CADA latido. Con esto un turno legítimo NO se corta a
-                    // mitad: si una lectura mala aislada hubiera borrado el timer, el
-                    // próximo latido bueno lo restaura; y una EXTENSIÓN "sigue" al juego
-                    // aunque el WebView esté congelado en HDMI (no puede re-llamar
-                    // scheduleReturn desde ahí). Si el server es viejo y no manda el
-                    // campo, parseLongField devuelve -1 y no tocamos nada (degradación).
+                    // El server manda el tiempo restante REAL. Re-sincronizamos SÓLO el
+                    // timer del watchdog rápido (si una lectura mala aislada borró el
+                    // timer, el próximo latido bueno lo restaura; y una EXTENSIÓN "sigue"
+                    // al juego). NO tocamos la alarma de retorno: queda FIJA en el fin que
+                    // puso scheduleReturn al arrancar el turno. Es un backstop
+                    // INDEPENDIENTE DE LA RED que SIEMPRE saca del HDMI al terminar,
+                    // aunque el heartbeat falle o traiga un dato atrasado. (Re-armarla
+                    // desde acá la podía correr MÁS ALLÁ del fin real en redes inestables
+                    // → la TV quedaba en el juego pasado el turno = fuga.) Si el server es
+                    // viejo y no manda el campo, parseLongField da -1 y no tocamos nada.
                     long remaining = parseLongField(sb, "\"sessionRemainingMs\":");
                     if (remaining > 0) {
                         sessionActiveUntilMs = SystemClock.elapsedRealtime() + remaining;
                         localSetAtMs = SystemClock.elapsedRealtime();
-                        if ("TV".equals(deviceType)) rearmReturnAlarmIfShifted(remaining);
                     }
                 } else if (confirmedNoSession
                         && (SystemClock.elapsedRealtime() - localSetAtMs) > 12000) {
