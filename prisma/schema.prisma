@@ -184,3 +184,28 @@ model Payment {
   @@index([mpPaymentId])
   @@index([status])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PromoCode - códigos promocionales de TIEMPO GRATIS, configurables desde el admin
+// (reemplaza a los códigos hardcodeados 8888/RRRR/9999 en activate/route.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PromoCode {
+  id            String    @id @default(cuid())
+  code          String    @unique              // se guarda en MAYÚSCULAS
+  label         String?                        // nombre/descripción para el admin
+  minutes       Int                            // minutos de juego GRATIS que otorga
+  maxUses       Int?                           // usos totales máximos (null = ilimitado)
+  usedCount     Int       @default(0)          // usos consumidos
+  cooldownMin   Int       @default(0)          // no reusar en el MISMO puesto por X min (0 = sin cooldown)
+  validFrom     DateTime?                      // vigente desde (null = sin límite)
+  validTo       DateTime?                      // vigente hasta (null = sin límite)
+  validDays     Int[]     @default([])         // días permitidos 0=dom..6=sáb ([] = todos)
+  validHourFrom Int?                           // hora AR desde 0-23 (null = sin límite)
+  validHourTo   Int?                           // hora AR hasta 0-23 exclusiva (null = sin límite)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([active])
+}

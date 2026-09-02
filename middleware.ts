@@ -159,6 +159,7 @@ export async function middleware(req: NextRequest) {
       pathname === "/admin" ||
       pathname.startsWith("/admin/metricas") ||
       pathname.startsWith("/admin/configuracion") ||
+      pathname.startsWith("/admin/promociones") ||
       pathname.startsWith("/admin/puestos");
     if (adminOnlyPath && token.role !== "ADMIN") {
       return NextResponse.redirect(new URL("/admin/reservas", req.nextUrl.origin));

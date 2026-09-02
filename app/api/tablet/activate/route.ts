@@ -4,6 +4,7 @@ import { isSlotAvailable } from "@/lib/availability";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { withPuestoLock } from "@/lib/booking-lock";
 import { getCachedSettings } from "@/lib/cache";
+import { checkPromoValidity } from "@/lib/promo";
 
 /**
  * POST /api/tablet/activate
@@ -147,6 +148,86 @@ export async function POST(req: NextRequest) {
         customerName: null,
         endTime: endTime.toISOString(),
         duration: special.minutes,
+        puestoName: puesto.name,
+        resumed: false,
+        trial: true,
+      });
+    }
+
+    // ── Código promocional configurable (DB, admin) ───────────────────────────
+    // Igual que los especiales pero editable desde el admin: minutos, usos máximos,
+    // vigencia por fechas, cooldown por simulador y día/horario. No pisa una sesión
+    // en curso ni la próxima reserva.
+    const promo = await prisma.promoCode.findUnique({ where: { code: normalizedCode } });
+    if (promo) {
+      const invalid = checkPromoValidity(promo);
+      if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
+      const puesto = await prisma.puesto.findUnique({
+        where: { id: puestoId },
+        select: { name: true, active: true },
+      });
+      if (!puesto || !puesto.active)
+        return NextResponse.json({ error: "Este simulador no está disponible." }, { status: 404 });
+      const now = new Date();
+      const endTime = new Date(now.getTime() + promo.minutes * 60 * 1000);
+      const note = `[Promo ${promo.code} - ${promo.minutes}min]`;
+      const outcome = await withPuestoLock(puestoId, async (tx) => {
+        const active = await tx.booking.findFirst({
+          where: { puestoId, status: "ACTIVE" },
+          select: { id: true },
+        });
+        if (active) return "busy" as const;
+        if (promo.cooldownMin > 0) {
+          const recent = await tx.booking.findFirst({
+            where: {
+              puestoId,
+              price: 0,
+              notes: note,
+              startTime: { gte: new Date(now.getTime() - promo.cooldownMin * 60 * 1000) },
+            },
+            select: { id: true },
+          });
+          if (recent) return "cooldown" as const;
+        }
+        const free = await isSlotAvailable(puestoId, now, endTime, undefined, tx);
+        if (!free) return "collision" as const;
+        // Consumo del uso de forma ATÓMICA (dos canjes simultáneos en distintos
+        // simuladores no pueden pasarse del máximo).
+        if (promo.maxUses != null) {
+          const upd = await tx.promoCode.updateMany({
+            where: { id: promo.id, usedCount: { lt: promo.maxUses } },
+            data: { usedCount: { increment: 1 } },
+          });
+          if (upd.count === 0) return "maxed" as const;
+        } else {
+          await tx.promoCode.update({ where: { id: promo.id }, data: { usedCount: { increment: 1 } } });
+        }
+        return tx.booking.create({
+          data: {
+            puestoId,
+            duration: promo.minutes,
+            price: 0,
+            status: "ACTIVE",
+            startTime: now,
+            endTime,
+            notes: note,
+          },
+        });
+      });
+      if (outcome === "busy")
+        return NextResponse.json({ error: "El simulador ya tiene una sesión en curso. Esperá a que termine." }, { status: 409 });
+      if (outcome === "cooldown")
+        return NextResponse.json({ error: "Este código ya se usó en este simulador hace poco. Probá en otro." }, { status: 429 });
+      if (outcome === "collision")
+        return NextResponse.json({ error: "No hay lugar ahora (hay una reserva próxima). Avisá al operador." }, { status: 409 });
+      if (outcome === "maxed")
+        return NextResponse.json({ error: "Este código ya alcanzó su límite de usos." }, { status: 409 });
+      return NextResponse.json({
+        bookingId: outcome.id,
+        code: normalizedCode,
+        customerName: null,
+        endTime: endTime.toISOString(),
+        duration: promo.minutes,
         puestoName: puesto.name,
         resumed: false,
         trial: true,

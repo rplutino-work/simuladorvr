@@ -12,6 +12,7 @@ import {
   Calendar,
   BarChart3,
   Settings,
+  Ticket,
   LogOut,
   Menu,
   X,
@@ -38,6 +39,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Gestión",
     items: [
       { href: "/admin/puestos", label: "Simuladores", icon: Monitor, adminOnly: true },
+      { href: "/admin/promociones", label: "Promociones", icon: Ticket, adminOnly: true },
       { href: "/admin/configuracion", label: "Configuración", icon: Settings, adminOnly: true },
     ],
   },
