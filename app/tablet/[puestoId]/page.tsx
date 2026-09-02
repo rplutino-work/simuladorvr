@@ -387,7 +387,12 @@ export default function TabletPage() {
           }
         }
 
-        setRemainingMs(data.session.remainingMs);
+        // NO re-seteamos remainingMs desde el server en cada poll: el countdown
+        // local de 500ms (basado en endTime) ya lo actualiza suave. Pisarlo con el
+        // remainingMs del server hacía SALTAR el número en cada poll por el
+        // desfasaje de reloj dispositivo↔server ("se acomodaba todo el tiempo"). El
+        // fin real del turno lo sigue manejando el server: cuando la sesión pasa a
+        // null la tablet vuelve a inicio; y una extensión re-arma el countdown.
       } catch {
         // network error — ignore, keep counting down locally
       }
