@@ -66,6 +66,9 @@ export default function PromocionesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Hoy en hora de Argentina — para que los pickers no dejen elegir fechas pasadas.
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/admin/promo-codes");
@@ -289,12 +292,18 @@ export default function PromocionesPage() {
 
               <div className="mt-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Código">
+                  <Field label="Código" hint="4 caracteres, tal como se tipean en la tablet (sin 0, 1, I ni O).">
                     <input
                       value={form.code}
-                      onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                      placeholder="VERANO"
-                      className="input font-mono"
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          code: e.target.value.toUpperCase().replace(/[^2-9A-HJ-NP-Z]/g, "").slice(0, 4),
+                        })
+                      }
+                      maxLength={4}
+                      placeholder="FREE"
+                      className="input font-mono tracking-[0.35em]"
                     />
                   </Field>
                   <Field label="Minutos gratis">
@@ -326,7 +335,10 @@ export default function PromocionesPage() {
                       className="input"
                     />
                   </Field>
-                  <Field label="Cooldown por simulador (min)">
+                  <Field
+                    label="Cooldown por simulador (min)"
+                    hint="Espera mínima para volver a usar ESTE código en el MISMO simulador. Evita encadenar turnos gratis seguidos. 0 = sin espera."
+                  >
                     <input
                       type="number"
                       value={form.cooldownMin}
@@ -341,6 +353,7 @@ export default function PromocionesPage() {
                   <Field label="Vigente desde">
                     <input
                       type="date"
+                      min={today}
                       value={form.validFrom}
                       onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
                       className="input"
@@ -349,6 +362,7 @@ export default function PromocionesPage() {
                   <Field label="Vigente hasta">
                     <input
                       type="date"
+                      min={form.validFrom || today}
                       value={form.validTo}
                       onChange={(e) => setForm({ ...form, validTo: e.target.value })}
                       className="input"
@@ -451,11 +465,12 @@ export default function PromocionesPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-slate-500">{label}</span>
       {children}
+      {hint && <span className="mt-1 block text-[11px] leading-snug text-slate-400">{hint}</span>}
     </label>
   );
 }

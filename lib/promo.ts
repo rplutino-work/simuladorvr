@@ -8,7 +8,11 @@ import { Prisma, PromoCode } from "@prisma/client";
 
 export type PromoInput = Prisma.PromoCodeUncheckedCreateInput;
 
-const CODE_RE = /^[A-Z0-9]{3,20}$/;
+// El código se tipea en el teclado de la tablet, que acepta EXACTAMENTE 4
+// caracteres del mismo set que los códigos de reserva: dígitos 2-9 y letras
+// A-Z SIN 0, 1, I ni O (para no confundirlos). Ver lib/code-generator.ts y el
+// keypad en app/tablet/[puestoId]/page.tsx. Nada fuera de eso es ingresable.
+const CODE_RE = /^[2-9A-HJ-NP-Z]{4}$/;
 
 /** Valida + normaliza el body para crear/editar un código. Devuelve {data} o {error}. */
 export function parsePromoInput(
@@ -16,7 +20,7 @@ export function parsePromoInput(
 ): { data: PromoInput } | { error: string } {
   const code = String(body.code ?? "").toUpperCase().trim();
   if (!CODE_RE.test(code))
-    return { error: "El código debe tener 3 a 20 caracteres (letras y números, sin espacios)." };
+    return { error: "El código debe tener 4 caracteres tipeables en la tablet: dígitos 2-9 y letras, sin 0, 1, I ni O." };
 
   const minutes = Number(body.minutes);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600)
