@@ -32,11 +32,16 @@ export async function GET(req: NextRequest) {
   // 14-day window for the trend chart (in AR time).
   const fourteenDaysAgoUTC = new Date(startOfTodayUTC.getTime() - 13 * 24 * 60 * 60 * 1000);
 
-  // Pruebas/uso gratis: sesiones activadas con códigos especiales (8888 prueba,
-  // RRRR staff, 9999 uso libre). No generan pago, así que no aparecen en ingresos
-  // — se identifican por la nota que les pone activate.
+  // Pruebas/uso gratis: sesiones activadas con códigos de cortesía/promo (los de
+  // la tabla PromoCode dejan la nota "[Promo CODE - Nmin]"; las notas legacy
+  // "Prueba"/"Uso libre" son de los viejos códigos cableados). No generan pago,
+  // así que no aparecen en ingresos — se identifican por la nota.
   const TRIAL_FILTER = {
-    OR: [{ notes: { contains: "Prueba" } }, { notes: { contains: "Uso libre" } }],
+    OR: [
+      { notes: { startsWith: "[Promo " } },
+      { notes: { contains: "Prueba" } },
+      { notes: { contains: "Uso libre" } },
+    ],
   };
 
   const [
@@ -157,6 +162,8 @@ export async function GET(req: NextRequest) {
   // Desglose de pruebas por tipo (últimos 14 días), según la nota del código.
   const trialTypeOf = (notes: string | null) => {
     const n = notes ?? "";
+    const m = n.match(/^\[Promo\s+(\S+)/); // "[Promo BR33 - 33min]" → BR33
+    if (m) return `Código ${m[1]}`;
     if (n.includes("staff")) return "Staff (RRRR)";
     if (n.includes("Uso libre")) return "Uso libre (9999)";
     if (n.includes("Prueba")) return "Prueba gratis (8888)";

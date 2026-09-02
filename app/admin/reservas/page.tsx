@@ -134,8 +134,8 @@ function isAbandonedQR(b: Booking): boolean {
 function typeBadge(b: Booking): { label: string; cls: string } | null {
   if (isAbandonedQR(b)) return null;
   const n = b.notes ?? "";
-  if (n.includes("Prueba") || n.includes("Uso libre"))
-    return { label: "Prueba", cls: "bg-amber-100 text-amber-700" };
+  if (n.startsWith("[Promo ") || n.includes("Prueba") || n.includes("Uso libre"))
+    return { label: "Cortesía", cls: "bg-amber-100 text-amber-700" };
   if (n.includes("Walk-in"))
     return { label: "Efectivo", cls: "bg-sky-100 text-sky-700" };
   return { label: "MercadoPago", cls: "bg-emerald-100 text-emerald-700" };

@@ -102,7 +102,7 @@ export default function MetricasPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel
           title="Pruebas gratis — últimos 14 días"
-          description={`${m.trialsMonth ?? 0} en el mes · ${m.trialsToday ?? 0} hoy (códigos 8888 / RRRR / 9999)`}
+          description={`${m.trialsMonth ?? 0} en el mes · ${m.trialsToday ?? 0} hoy (códigos de cortesía y promos)`}
         >
           {series.length ? (
             <AreaChart data={series.map((d) => ({ label: dayLabel(d.date), value: d.trials ?? 0 }))} height={200} />

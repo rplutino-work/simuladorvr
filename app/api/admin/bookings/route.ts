@@ -36,8 +36,11 @@ export async function GET(req: NextRequest) {
     Math.max(1, parseInt(searchParams.get("pageSize") ?? "50", 10) || 50)
   );
 
-  // Sesiones gratis (códigos 8888/RRRR/9999) — se identifican por la nota.
+  // Sesiones gratis (códigos de cortesía/promo) — se identifican por la nota. Los
+  // códigos de la tabla PromoCode dejan "[Promo …]"; "Prueba"/"Uso libre" son las
+  // notas legacy de los viejos códigos cableados.
   const TRIAL_OR: Prisma.BookingWhereInput[] = [
+    { notes: { startsWith: "[Promo " } },
     { notes: { contains: "Prueba" } },
     { notes: { contains: "Uso libre" } },
   ];
@@ -83,9 +86,9 @@ export async function GET(req: NextRequest) {
   else if (type === "walkin") and.push(WALKIN);
   else if (type === "qr") and.push(ABANDONED_QR);
   else if (type === "mp")
-    and.push(notContains("Prueba"), notContains("Uso libre"), notContains("Walk-in"), { NOT: ABANDONED_QR });
+    and.push(notContains("[Promo "), notContains("Prueba"), notContains("Uso libre"), notContains("Walk-in"), { NOT: ABANDONED_QR });
   else if (type === "real")
-    and.push(notContains("Prueba"), notContains("Uso libre"), { NOT: ABANDONED_QR }); // default: sin pruebas ni QR sin pagar
+    and.push(notContains("[Promo "), notContains("Prueba"), notContains("Uso libre"), { NOT: ABANDONED_QR }); // default: sin cortesías/promos ni QR sin pagar
   // type === "all" → sin filtro de tipo
   if (and.length) base.AND = and;
 

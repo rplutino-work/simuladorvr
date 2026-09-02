@@ -322,10 +322,6 @@ export default function ConfiguracionPage() {
                   <Input type="number" min={0} value={scheduleForm.negativeMarginMinutes}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, negativeMarginMinutes: parseInt(e.target.value, 10) || 0 })} />
                 </Field>
-                <Field label="Cooldown prueba gratis (min)" hint="Espera entre pruebas con código 8888 por simulador. 0 = desactivado (sin límite).">
-                  <Input type="number" min={0} max={240} value={scheduleForm.trialCooldownMin}
-                    onChange={(e) => setScheduleForm({ ...scheduleForm, trialCooldownMin: parseInt(e.target.value, 10) || 0 })} />
-                </Field>
               </div>
             </div>
 

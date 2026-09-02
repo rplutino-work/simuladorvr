@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { isSlotAvailable } from "@/lib/availability";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { withPuestoLock } from "@/lib/booking-lock";
-import { getCachedSettings } from "@/lib/cache";
 import { checkPromoValidity } from "@/lib/promo";
 
 /**
@@ -40,124 +39,12 @@ export async function POST(req: NextRequest) {
 
     const normalizedCode = String(code).toUpperCase().trim();
 
-    // ── Códigos especiales (prueba gratis / staff) ────────────────────────────
-    // "8888": prueba gratis pública de 10 min. Anti-abuso: una prueba por
-    //   simulador cada `trialCooldownMin` minutos (configurable desde el admin;
-    //   0 = sin cooldown).
-    // "RRRR": código del que abre a la mañana — sesión de 5 min para probar cada
-    //   simulador. Sin cooldown (es de uso interno).
-    // Ambos: no pisan una sesión en curso ni la próxima reserva.
-    const SPECIAL_CODES: Record<
-      string,
-      { minutes: number; note: string; useCooldown: boolean; validDate?: string }
-    > = {
-      "8888": { minutes: 10, note: "[Prueba gratis 10 min]", useCooldown: true },
-      RRRR: { minutes: 5, note: "[Prueba staff 5 min]", useCooldown: false },
-      // Código de promo de UN SOLO DÍA: 30 min gratis, uso libre (sin cooldown),
-      // válido únicamente en `validDate` (fecha AR). Fuera de ese día, no anda.
-      "9999": { minutes: 30, note: "[Uso libre 30 min]", useCooldown: false, validDate: "2026-08-22" },
-    };
-    const special = SPECIAL_CODES[normalizedCode];
-    if (special) {
-      // Promo con fecha: sólo válido ese día (en hora de Argentina).
-      if (special.validDate) {
-        const arDate = new Date().toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires",
-        }); // formato YYYY-MM-DD
-        if (arDate !== special.validDate) {
-          return NextResponse.json(
-            { error: "Este código no está vigente." },
-            { status: 400 }
-          );
-        }
-      }
-      const puesto = await prisma.puesto.findUnique({
-        where: { id: puestoId },
-        select: { name: true, active: true },
-      });
-      if (!puesto || !puesto.active) {
-        return NextResponse.json({ error: "Este simulador no está disponible." }, { status: 404 });
-      }
-      // Cooldown configurable desde el admin (0 = desactivado). Sólo aplica a los
-      // códigos con `useCooldown` (el 8888 público, no el staff).
-      let cooldownMin = 0;
-      if (special.useCooldown) {
-        try {
-          const settings = await getCachedSettings();
-          cooldownMin = settings?.trialCooldownMin ?? 10;
-        } catch {
-          cooldownMin = 10;
-        }
-      }
-      const now = new Date();
-      const endTime = new Date(now.getTime() + special.minutes * 60 * 1000);
-      const outcome = await withPuestoLock(puestoId, async (tx) => {
-        const active = await tx.booking.findFirst({
-          where: { puestoId, status: "ACTIVE" },
-          select: { id: true },
-        });
-        if (active) return "busy" as const;
-        // Cooldown: ¿hubo otra prueba (de este mismo tipo) en el puesto hace poco?
-        if (cooldownMin > 0) {
-          const recentTrial = await tx.booking.findFirst({
-            where: {
-              puestoId,
-              price: 0,
-              notes: special.note,
-              startTime: { gte: new Date(now.getTime() - cooldownMin * 60 * 1000) },
-            },
-            select: { id: true },
-          });
-          if (recentTrial) return "cooldown" as const;
-        }
-        const free = await isSlotAvailable(puestoId, now, endTime, undefined, tx);
-        if (!free) return "collision" as const;
-        return tx.booking.create({
-          data: {
-            puestoId,
-            duration: special.minutes,
-            price: 0,
-            status: "ACTIVE",
-            startTime: now,
-            endTime,
-            notes: special.note,
-          },
-        });
-      });
-      if (outcome === "busy") {
-        return NextResponse.json(
-          { error: "El simulador ya tiene una sesión en curso. Esperá a que termine." },
-          { status: 409 }
-        );
-      }
-      if (outcome === "cooldown") {
-        return NextResponse.json(
-          { error: "Ya se usó una prueba en este simulador hace poco. Probá en otro o pedí un turno." },
-          { status: 429 }
-        );
-      }
-      if (outcome === "collision") {
-        return NextResponse.json(
-          { error: "No hay lugar para la prueba ahora (hay una reserva próxima). Avisá al operador." },
-          { status: 409 }
-        );
-      }
-      return NextResponse.json({
-        bookingId: outcome.id,
-        code: normalizedCode,
-        customerName: null,
-        endTime: endTime.toISOString(),
-        duration: special.minutes,
-        puestoName: puesto.name,
-        resumed: false,
-        trial: true,
-      });
-    }
-
-    // ── Código promocional configurable (DB, admin) ───────────────────────────
-    // Igual que los especiales pero editable desde el admin: minutos, usos máximos,
-    // vigencia por fechas, cooldown por simulador y día/horario. No pisa una sesión
-    // en curso ni la próxima reserva.
+    // ── Códigos promocionales / cortesía (DB, admin) ──────────────────────────
+    // TODOS los códigos gratis viven en la tabla PromoCode, editables desde
+    // /admin/promociones: la prueba gratis pública (8888), la prueba staff (RRRR)
+    // y cualquier promo nueva. No hay códigos cableados. Cada uno define minutos,
+    // usos máximos, vigencia por fechas, cooldown por simulador y día/horario. El
+    // canje no pisa una sesión en curso ni la próxima reserva.
     const promo = await prisma.promoCode.findUnique({ where: { code: normalizedCode } });
     if (promo) {
       const invalid = checkPromoValidity(promo);
