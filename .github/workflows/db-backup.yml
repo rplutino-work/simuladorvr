@@ -69,12 +69,16 @@ jobs:
           ROWS=$(awk '/^COPY /{f=1;next} /^\\\.$/{f=0} f' "$FILE" | wc -l | tr -d ' ')
           echo "tablas=$TABLES enums=$ENUMS fks=$FKS filas=$ROWS"
 
-          # Integridad ESTRUCTURAL = fatal: si faltan tablas/enums/FKs el dump esta
-          # corrupto y no tiene sentido guardarlo.
+          # Integridad ESTRUCTURAL = fatal: si el dump salio truncado le van a FALTAR
+          # tablas/enums/FKs. Se valida contra un MINIMO (la estructura conocida), no
+          # contra un numero exacto: el schema solo crece, y exigir "== N" hacia fallar
+          # el backup cada vez que se agregaba una tabla (ej: PromoCode, sep-2026) aun
+          # con el dump perfecto. Con ">=" un dump completo o mas nuevo pasa siempre, y
+          # uno truncado (con menos estructura de la conocida) sigue siendo fatal.
           FAIL=""
-          [ "$TABLES" -eq 7 ]  || FAIL="$FAIL tablas($TABLES!=7)"
-          [ "$ENUMS"  -eq 3 ]  || FAIL="$FAIL enums($ENUMS!=3)"
-          [ "$FKS"    -eq 3 ]  || FAIL="$FAIL fks($FKS!=3)"
+          [ "$TABLES" -ge 8 ]  || FAIL="$FAIL tablas($TABLES<8)"
+          [ "$ENUMS"  -ge 3 ]  || FAIL="$FAIL enums($ENUMS<3)"
+          [ "$FKS"    -ge 3 ]  || FAIL="$FAIL fks($FKS<3)"
 
           if [ -n "$FAIL" ]; then
             echo "::error::Dump estructuralmente incompleto:$FAIL"
