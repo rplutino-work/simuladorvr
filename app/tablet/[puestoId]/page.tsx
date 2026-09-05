@@ -313,6 +313,25 @@ export default function TabletPage() {
     startCountdown(newEndTimeIso, session?.duration ?? 60);
   }, [session?.duration, startCountdown]);
 
+  // Recuperación robusta: consulta el estado real del puesto y, si hay una sesión
+  // activa, la adopta y muestra el contador. Cubre el caso "el pedido de activar
+  // llegó al server (el turno arrancó) pero la respuesta se perdió en la vuelta por
+  // WiFi" — así la tablet no queda pegada en "validando"/error con el juego corriendo.
+  const recoverActiveSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/tablet/${puestoId}/status`);
+      const data = await res.json();
+      if (data.session) {
+        setSession(data.session);
+        setTotalMs(data.session.duration * 60 * 1000);
+        startCountdown(data.session.endTime, data.session.duration);
+        setState(data.session.remainingMs <= WARNING_MS ? "warning" : "active");
+        return true;
+      }
+    } catch { /* red caída — no pudimos confirmar */ }
+    return false;
+  }, [puestoId, startCountdown]);
+
   // ── Auto-submit code as soon as 4 chars are entered ─────────────────────
   useEffect(() => {
     if (state === "input" && codeInput.length === 4) {
@@ -443,7 +462,7 @@ export default function TabletPage() {
   useEffect(() => {
     if (!puestoId) return;
     const SYNCABLE = [
-      "screensaver", "choose_duration", "direct_loading",
+      "validating", "screensaver", "choose_duration", "direct_loading",
       "direct_qr", "direct_confirm_cancel", "direct_waiting", "error",
     ];
     const sync = async () => {
@@ -667,6 +686,11 @@ export default function TabletPage() {
           setErrorTitle("DEMASIADOS INTENTOS");
           setErrorMsg(data.error ?? "Esperá un momento y volvé a intentar.");
         } else if (res.status === 409) {
+          // "Ocupado" justo después de tipear un código válido suele ser NUESTRO
+          // propio pedido que sí arrancó el turno pero cuya respuesta se perdió (y
+          // este es el reintento). Si hay sesión viva, la adoptamos y mostramos el
+          // contador en vez de un error.
+          if (await recoverActiveSession()) return;
           setErrorTitle("PUESTO OCUPADO");
           setErrorMsg(
             data.error ?? "Este simulador ya tiene una sesión activa."
@@ -689,6 +713,10 @@ export default function TabletPage() {
       setState("active");
     } catch (err) {
       console.error("[tablet] activate error:", err);
+      // El pedido pudo haber llegado al server (turno arrancado) aunque la respuesta
+      // se perdiera por WiFi. Antes de dar error, adoptamos la sesión activa si la
+      // hay — así la tablet no queda en "validando"/error con el juego ya corriendo.
+      if (await recoverActiveSession()) return;
       setErrorTitle("SIN CONEXIÓN");
       setErrorMsg("No pudimos conectar. Verificá el Wi-Fi e intentá de nuevo.");
       setState("error");

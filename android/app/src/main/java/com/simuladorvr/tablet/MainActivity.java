@@ -301,6 +301,60 @@ public class MainActivity extends BridgeActivity {
         retryHandler.postDelayed(retryRunnable, WEB_RETRY_INTERVAL_MS);
     }
 
+    // ── WebView liveness watchdog (post-arranque, SOLO tablet) ───────────────
+    // El retryRunnable de arriba recarga el WebView SOLO hasta el primer boot y
+    // después se apaga para siempre — por eso un cuelgue POSTERIOR no lo agarra
+    // nada. Este vigila después: si el WebView se congela (Chromium bajo WiFi floja
+    // deja de correr TODO el JS → la tablet queda pegada en "validando" y ni los
+    // timers de la página la rescatan), lo detecta con un ping JS y lo recarga solo.
+    // Al recargar, el on-mount de la web re-adopta la sesión activa si la hay, así
+    // que nunca se pierde un turno en curso. SOLO en TABLET: en la TV el WebView se
+    // congela a propósito detrás del HDMI durante el turno, ahí no se toca.
+    private static final long ALIVE_PROBE_INTERVAL_MS = 10_000;
+    private final Handler aliveHandler = new Handler(Looper.getMainLooper());
+    private volatile boolean aliveProbePending = false;
+    private int aliveMissStreak = 0;
+    private boolean aliveWatchStarted = false;
+
+    private void startAliveWatchdog() {
+        if (aliveWatchStarted) return;
+        aliveWatchStarted = true;
+        aliveHandler.postDelayed(aliveRunnable, ALIVE_PROBE_INTERVAL_MS);
+    }
+
+    private final Runnable aliveRunnable = new Runnable() {
+        @Override public void run() {
+            try {
+                if (pageLoadedOnce && "TABLET".equals(heartbeatDeviceType)) {
+                    if (aliveProbePending) {
+                        // El ping del tick anterior NUNCA volvió → el renderer no
+                        // responde (JS congelado). A los ~2 ticks (~20s) recargamos.
+                        aliveMissStreak++;
+                        if (aliveMissStreak >= 2) {
+                            aliveMissStreak = 0;
+                            aliveProbePending = false;
+                            try { getBridge().getWebView().reload(); }
+                            catch (Exception e) { e.printStackTrace(); }
+                        }
+                    } else {
+                        aliveMissStreak = 0;
+                        aliveProbePending = true;
+                        try {
+                            // Ping trivial: si el JS corre, el callback vuelve al
+                            // instante y baja la bandera. Si está congelado, nunca.
+                            getBridge().getWebView().evaluateJavascript(
+                                "1", value -> aliveProbePending = false);
+                        } catch (Exception e) { aliveProbePending = false; }
+                    }
+                } else {
+                    aliveProbePending = false;
+                    aliveMissStreak = 0;
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+            aliveHandler.postDelayed(this, ALIVE_PROBE_INTERVAL_MS);
+        }
+    };
+
     private boolean isNetworkAvailable() {
         try {
             ConnectivityManager cm =
@@ -404,6 +458,12 @@ public class MainActivity extends BridgeActivity {
                 if ("TV".equals(heartbeatDeviceType) && lastShouldBeOn && !sessionActiveNow()
                         && !inSettingsGrace()) {
                     bringAppToFront();
+                    // Re-afirma el pin de lock-task si se soltó: SIN pin, el launcher
+                    // de Google puede tomar el frente solo (le pasó a la TV4) y el
+                    // watchdog no lo recupera porque Android bloquea el relanzado en
+                    // background (BAL). No-op si ya está lockeado o no está en primer
+                    // plano (startLockTask sólo corre con la activity resumida).
+                    startKioskLock();
                 }
             } catch (Exception e) { e.printStackTrace(); }
             antiFreeHandler.postDelayed(this, ANTIFREE_INTERVAL_MS);
@@ -988,6 +1048,7 @@ public class MainActivity extends BridgeActivity {
             heartbeatDeviceType = "TV".equals(deviceType) ? "TV" : "TABLET";
             startHeartbeat();
             startAntiFreeWatchdog(); // TV: saca del HDMI en ≤3s si no hay turno
+            startAliveWatchdog();    // TABLET: recarga sola si el WebView se congela
         }
 
         /**
