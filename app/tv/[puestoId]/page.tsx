@@ -15,7 +15,11 @@ type SessionData = {
 
 type TVState = "off" | "idle" | "redirecting" | "game" | "finished";
 
-const POLL_MS = 8000; // 8s — detectar inicio de turno para pasar a HDMI (≤8s, cubre el caminar-y-sentarse). El anti-fuga (salir del HDMI sin turno) es NATIVO y no depende de esto.
+// Poll adaptativo según el estado: rápido en sesión (detectar el fin al toque),
+// lento sin sesión (menos carga a la DB), muy lento con la pantalla apagada.
+const POLL_ACTIVE_MS = 3000; // sesión activa → detectar el fin del turno en ≤3s
+const POLL_IDLE_MS = 10000; // sin sesión → chequear el inicio de turno cada 10s
+const POLL_OFF_MS = 60000; // fuera de horario / pantalla apagada
 const REDIRECT_DELAY_MS = 3000;
 
 function RacingLines() {
@@ -83,9 +87,9 @@ export default function TVPage() {
   // propaga recargando a mano.
   useAutoReload(() => state !== "off");
   const [puestoName, setPuestoName] = useState("");
-  // Poll fast during business hours, slow (once a minute) when the screen is
-  // off — so the DB isn't hit every 3s all night and Neon can auto-suspend.
-  const [pollMs, setPollMs] = useState(POLL_MS);
+  // Intervalo de poll adaptativo: 3s en sesión, 10s sin sesión, 60s con la
+  // pantalla apagada — así la DB no se pega cada 3s toda la noche.
+  const [pollMs, setPollMs] = useState(POLL_IDLE_MS);
   const prevSessionRef = useRef<string | null>(null);
   // Cuándo se mandó por última vez al juego (Date.now). Sirve para detectar
   // "atascados en la app con turno" y re-mandar (ver el poll).
@@ -123,7 +127,9 @@ export default function TVPage() {
 
       // TV power: off if outside business hours or puesto disabled
       const shouldBeOn = data.screenOn !== false;
-      setPollMs(shouldBeOn ? POLL_MS : 60000);
+      // Con la pantalla apagada, poll lento (60s). Con la pantalla prendida el
+      // intervalo lo fija la lógica de sesión de abajo (3s activa / 10s idle).
+      if (!shouldBeOn) setPollMs(POLL_OFF_MS);
 
       if (!shouldBeOn && screenStateRef.current) {
         screenStateRef.current = false;
@@ -144,7 +150,28 @@ export default function TVPage() {
 
       // Normal session logic
       if (data.session) {
+        // Cambio B — defensa (además del guard server-side del status): si la
+        // sesión que llegó YA venció (endTime pasado), NUNCA mandarla al HDMI —
+        // traer la app al frente (pantalla DISPONIBLE). Cubre un status stale o un
+        // endTime que expira entre el poll y el switch. Es lo que causaba la fuga:
+        // la lógica `stuckOnApp` re-mandaba al juego una sesión ya terminada.
+        if (new Date(data.session.endTime).getTime() <= Date.now()) {
+          if (redirectTimerRef.current) {
+            clearTimeout(redirectTimerRef.current);
+            redirectTimerRef.current = null;
+          }
+          tryNativeBridge("cancelScheduledReturn");
+          tryNativeBridge("cancelEndingWarning");
+          tryNativeBridge("switchToApp");
+          prevSessionRef.current = null;
+          setSession(null);
+          setState("idle");
+          setPollMs(POLL_IDLE_MS);
+          return;
+        }
+
         setSession(data.session);
+        setPollMs(POLL_ACTIVE_MS); // Cambio C — sesión activa: poll cada 3s
 
         // Mandar al juego si: (a) turno NUEVO, o (b) FORZAR si estamos atascados en
         // la app con turno. El poll corre SÓLO con la WebView en primer plano (el HDMI
@@ -184,6 +211,7 @@ export default function TVPage() {
           }, REDIRECT_DELAY_MS);
         }
       } else {
+        setPollMs(POLL_IDLE_MS); // Cambio C — sin sesión: poll cada 10s
         if (prevSessionRef.current) {
           const finishedId = prevSessionRef.current;
           prevSessionRef.current = null;

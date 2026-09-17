@@ -29,6 +29,7 @@ export async function GET(
         customerName: true,
         endTime: true,
         duration: true,
+        status: true,
         puesto: { select: { name: true } },
       },
     }),
@@ -46,9 +47,26 @@ export async function GET(
   const puestoActive = puesto?.active ?? true;
   const screenOn = withinSchedule && puestoActive;
 
-  if (!booking) {
-    // No active session — check if the last session for this puesto finished
-    // recently so the TV can show "SESIÓN FINALIZADA" even after a cold restart.
+  // Fin efectivo del turno. `endTime` puede ser null en el schema → fallback a
+  // ahora+duración (mismo comportamiento que antes).
+  const sessionEndTime = booking
+    ? booking.endTime ?? new Date(now.getTime() + booking.duration * 60 * 1000)
+    : null;
+
+  // Guard server-side (fin de turno INSTANTÁNEO, sin depender del cron): sólo es
+  // una sesión VIVA un booking ACTIVE cuyo `endTime` todavía no pasó. Un ACTIVE con
+  // endTime vencido (el cron auto-finish tiene 5 min de gracia y corre cada ~10 min
+  // → puede tardar hasta ~15 min en marcarlo FINISHED) NO se reporta como sesión →
+  // la TV vuelve a DISPONIBLE apenas termina el turno. (`booking.status === "ACTIVE"`
+  // ya lo garantiza el query; se chequea explícito por defensa.)
+  if (
+    !booking ||
+    booking.status !== "ACTIVE" ||
+    !sessionEndTime ||
+    sessionEndTime.getTime() <= now.getTime()
+  ) {
+    // Sin sesión viva — buscar la última FINISHED reciente para que la TV muestre
+    // "SESIÓN FINALIZADA" aun tras un cold restart.
     const windowStart = new Date(now.getTime() - RECENTLY_FINISHED_WINDOW_MS);
     const lastFinished = await prisma.booking.findFirst({
       where: {
@@ -77,15 +95,14 @@ export async function GET(
     });
   }
 
-  const endTime = booking.endTime ?? new Date(now.getTime() + booking.duration * 60 * 1000);
-  const remainingMs = Math.max(0, endTime.getTime() - now.getTime());
+  const remainingMs = Math.max(0, sessionEndTime.getTime() - now.getTime());
 
   return NextResponse.json({
     session: {
       bookingId: booking.id,
       code: booking.code,
       customerName: booking.customerName,
-      endTime: endTime.toISOString(),
+      endTime: sessionEndTime.toISOString(),
       remainingMs,
       duration: booking.duration,
       puestoName: booking.puesto.name,
