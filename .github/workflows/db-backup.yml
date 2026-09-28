@@ -24,6 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # `actions: write` es para que la limpieza pueda borrar artifacts viejos.
+    # Sin esto el token es de solo lectura y el DELETE devuelve 403. No se noto
+    # hasta el 27/09/2026: la limpieza solo borra a partir del respaldo 31, asi
+    # que durante el primer mes nunca llego a intentarlo.
+    permissions:
+      contents: read
+      actions: write
+
     steps:
       # Supabase corre PostgreSQL 17. pg_dump se niega a leer un servidor mas
       # nuevo que el, y los runners traen el 16, asi que hay que traer el 17 de PGDG.
@@ -128,7 +136,11 @@ jobs:
           path: ${{ env.BACKUP_FILE }}
           retention-days: 30
 
+      # Tarea de orden, no de respaldo: si falla, el backup ya esta guardado.
+      # Nunca debe hacer fallar la corrida. Igual `retention-days: 30` vence los
+      # artifacts solo, asi que esto es apenas un refuerzo.
       - name: Cleanup old backups
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
@@ -177,9 +189,13 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg to "$ALERT_EMAIL" \
                         --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-                        --arg err "${{ env.VERIFY_ERROR }}" '{
+                        --arg err "${{ env.VERIFY_ERROR }}" \
+                        --arg stats "${{ env.BACKUP_STATS }}" '{
               from: "Race Room <reservas@raceroom.com.ar>",
               to: [$to],
-              subject: "🔴 simuladorvr: FALLO el backup de la base",
-              html: ("<p>El backup diario de simuladorvr (Supabase) fallo. Supabase free no tiene backups propios, asi que hoy las reservas quedaron sin respaldo.</p><p><b>Detalle:</b> " + (if $err == "" then "ver el log" else $err end) + "</p><p><a href=\"" + $url + "\">Ver la corrida</a></p>")
+              subject: (if $stats == "" then "🔴 simuladorvr: SIN RESPALDO hoy" else "🟠 simuladorvr: el respaldo se guardo, fallo un paso posterior" end),
+              html: (if $stats == ""
+                     then "<p><b>El dump no se completo.</b> Supabase free no tiene backups propios, asi que hoy las reservas quedaron sin respaldo.</p><p><b>Detalle:</b> " + (if $err == "" then "ver el log" else $err end) + "</p>"
+                     else "<p>El respaldo de hoy <b>si se guardo</b> (" + $stats + "). Lo que fallo es un paso posterior, probablemente la limpieza de artifacts viejos.</p><p>No hay riesgo para los datos: no hace falta correr nada a mano.</p>"
+                     end) + "<p><a href=\"" + $url + "\">Ver la corrida</a></p>")
             }')"
